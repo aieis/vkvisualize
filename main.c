@@ -22,6 +22,9 @@ const bool enableValidationLayers = true;
 #endif
 
 bool checkValidationLayerSupport();
+void getRequiredExtensions(uint32_t* count, char** extensions);
+bool enumerateExtensions();
+bool isDeviceSuitable(VkPhysicalDevice device);
 
 int main()
 {
@@ -48,7 +51,7 @@ int main()
   uint32_t glfwExtensionCount = 0;
   const char** glfwExtensions;
   glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
+  
   VkInstanceCreateInfo createInfo;
   createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
   createInfo.pApplicationInfo = &appInfo;
@@ -63,16 +66,31 @@ int main()
   
   VkResult result = vkCreateInstance(&createInfo, NULL, &instance);
   if (result != VK_SUCCESS) {
+    printf("Failed to create instance.\nExiting...\n");
     return 1;
   }
 
-  uint32_t extensionCount = 0;
-  vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
-  VkExtensionProperties* extensions = calloc(extensionCount, sizeof(VkExtensionProperties));
-  vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, extensions);
-  printf("Available Extensions: \n");
-  for (int i = 0;  i < extensionCount; i++) {
-    printf("\t%s\n", extensions[i].extensionName);
+  /* Pick Physical Device */
+  VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+  uint32_t deviceCount = 0;
+  vkEnumeratePhysicalDevices(instance, &deviceCount, NULL);
+  if (deviceCount == 0) {
+    printf("No devices available.\nExiting...\n");
+    return 1;
+  }
+  
+  VkPhysicalDevice devices[deviceCount];
+  vkEnumeratePhysicalDevices(instance, &deviceCount, devices);
+  for (int i = 0; i < deviceCount; i++) {
+    if (isDeviceSuitable(devices[i])) {
+      physicalDevice = devices[i];
+      break;
+    }
+  }
+
+  if (physicalDevice == VK_NULL_HANDLE) {
+    printf("No suitable devices available.\nExiting...\n");
+    return 1;
   }
   
   /* Drawing Loop */
@@ -81,7 +99,6 @@ int main()
   }
 
   /* Clean Up Code */
-  free(extensions);
   vkDestroyInstance(instance, NULL);
   glfwDestroyWindow(window);
   glfwTerminate();
@@ -106,4 +123,41 @@ bool checkValidationLayerSupport()
     }
   }
   return foundAll;
+}
+
+void getRequiredExtensions(uint32_t* count, char** extensions)
+{
+  uint32_t glfwExtensionCount = 0;
+  const char** glfwExtensions;
+  glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+  uint32_t additionalExtensions = enableValidationLayers? 1 : 0;
+  uint32_t totalExts = glfwExtensionCount + additionalExtensions;
+  if (!extensions) {
+    return;
+  }
+}
+
+bool enumerateExtensions()
+{
+  uint32_t extensionCount = 0;
+  vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, NULL);
+  VkExtensionProperties* extensions = calloc(extensionCount, sizeof(VkExtensionProperties));
+  vkEnumerateInstanceExtensionProperties(NULL, &extensionCount, extensions);
+  printf("Available Extensions: \n");
+  for (int i = 0;  i < extensionCount; i++) {
+    printf("\t%s\n", extensions[i].extensionName);
+  }
+  free(extensions);
+  
+}
+
+bool isDeviceSuitable(VkPhysicalDevice device)
+{
+  VkPhysicalDeviceProperties deviceProperties;
+  vkGetPhysicalDeviceProperties(device, &deviceProperties);
+  VkPhysicalDeviceFeatures deviceFeatures;
+  vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+  printf("Phsyical Device Name: %s \n", deviceProperties.deviceName);
+  return true;
 }
