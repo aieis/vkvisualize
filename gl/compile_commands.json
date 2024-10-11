@@ -1,0 +1,66 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/clang",
+      "-g",
+      "-c",
+      "-IC:/lib/vcpkg/installed/x64-windows/include",
+      "-Iinclude",
+      "-Ithird_party/include",
+      "-o",
+      "build/main.o",
+      "src/main.c"
+    ],
+    "directory": "/home/ahmed/proj/vkvisualize/gl",
+    "file": "/home/ahmed/proj/vkvisualize/gl/src/main.c",
+    "output": "/home/ahmed/proj/vkvisualize/gl/build/main.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/clang",
+      "-g",
+      "-c",
+      "-IC:/lib/vcpkg/installed/x64-windows/include",
+      "-Iinclude",
+      "-Ithird_party/include",
+      "-o",
+      "build/shader.o",
+      "src/graphics/shader.c"
+    ],
+    "directory": "/home/ahmed/proj/vkvisualize/gl",
+    "file": "/home/ahmed/proj/vkvisualize/gl/src/graphics/shader.c",
+    "output": "/home/ahmed/proj/vkvisualize/gl/build/shader.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/clang",
+      "-g",
+      "-c",
+      "-IC:/lib/vcpkg/installed/x64-windows/include",
+      "-Iinclude",
+      "-Ithird_party/include",
+      "-o",
+      "build/compass.o",
+      "src/graphics/compass.c"
+    ],
+    "directory": "/home/ahmed/proj/vkvisualize/gl",
+    "file": "/home/ahmed/proj/vkvisualize/gl/src/graphics/compass.c",
+    "output": "/home/ahmed/proj/vkvisualize/gl/build/compass.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/clang",
+      "-g",
+      "-c",
+      "-IC:/lib/vcpkg/installed/x64-windows/include",
+      "-Iinclude",
+      "-Ithird_party/include",
+      "-o",
+      "build/glad.o",
+      "src/glad.c"
+    ],
+    "directory": "/home/ahmed/proj/vkvisualize/gl",
+    "file": "/home/ahmed/proj/vkvisualize/gl/src/glad.c",
+    "output": "/home/ahmed/proj/vkvisualize/gl/build/glad.o"
+  }
+]
