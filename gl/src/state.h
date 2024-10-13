@@ -2,21 +2,15 @@
 
 #include "cglm/mat4.h"
 
-struct WindowState {
-    int W;
-    int H;
-    mat4 mvp;
-};
-
-typedef struct WindowState WindowState;
-
-
 struct ProgramState {
     int W;
     int H;
     
+    mat4 model;
+    mat4 projection;
+    mat4 view;
     mat4 mvp;
-    bool new_mvp;
     
     bool conf;
 };
+typedef struct ProgramState ProgramState;

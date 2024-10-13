@@ -6,13 +6,16 @@ LIB = -L$(THIRD_PARTY)/lib -lglfw3dll -lopengl32 -luser32 -lgdi32 -lkernel32 -ls
 CC = gcc
 LD = gcc
 
-CCFLAGS = $(INC)
+CCFLAGS = $(INC) -DCGLM_STATIC=ON -DCGLM_SHARED=OFF
 LDFLAGS = $(LIB)
 
-build/pcl-viewer: build/main.o build/shader.o build/compass.o build/glad.o build/pcl.o build/record.o build/record_player.o
+build/pcl-viewer: build/main.o build/shader.o build/compass.o build/glad.o build/pcl.o build/record.o build/record_player.o build/input.o
 	$(LD) -o $@ $^ $(LDFLAGS)
 
-build/main.o: src/main.c src/graphics/shader.h src/state.h
+build/main.o: src/main.c src/state.h src/graphics/shader.h src/graphics/pcl.h src/utils/record.h src/device/record_player.h src/input.h
+	$(CC) -c -o $@ $< $(CCFLAGS)
+
+build/input.o: src/input.c src/input.h src/state.h
 	$(CC) -c -o $@ $< $(CCFLAGS)
 
 build/shader.o: src/graphics/shader.c src/graphics/shader.h

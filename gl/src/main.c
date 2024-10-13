@@ -2,13 +2,13 @@
 
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
+#include "cglm/cam.h"
 
 #include "graphics/shader.h"
 #include "graphics/compass.h"
 #include "graphics/pcl.h"
-
 #include "device/record_player.h"
-#include "state.h"
+#include "input.h"
 
 int main(int argc, char** argv) {
 
@@ -28,10 +28,10 @@ int main(int argc, char** argv) {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    WindowState win_state = {512, 512 };
-    glm_mat4_identity(win_state.mvp);
-
-    GLFWwindow* window = glfwCreateWindow(win_state.W, win_state.H, "PCL", NULL, NULL);
+    ProgramState state;
+    make_state(&state, 1024, 1024);
+    
+    GLFWwindow* window = glfwCreateWindow(state.W, state.H, "PCL", NULL, NULL);
 
     if (!window) {
         fprintf(stderr, "Could not create window\n");
@@ -47,8 +47,11 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
+    glViewport(0, 0, state.W, state.H);
 
+    glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
+    glEnable(GL_DEPTH_TEST);
+    
     ShaderProgram compass_shader;
     if (!load_shader_program(&compass_shader, "assets/shaders/line.vert", "assets/shaders/col.frag")) {
         fprintf(stderr, "Could not create compass shader\n");
@@ -76,22 +79,24 @@ int main(int argc, char** argv) {
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+        process_events(&state, window);
 
-        glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         float* data;
         if (poll_record_player(&player, &data)) {
             update_point_cloud(&pcl, data, player.count);
         }
 
-        glUseProgram(compass_shader.id);
-        glUniformMatrix4fv(compass_shader_mvp, 1, GL_FALSE, (float*) win_state.mvp);
-        draw_compass(&compass, 0);
-
         glUseProgram(pcl_shader.id);
-        glUniformMatrix4fv(pcl_shader_mvp, 1, GL_FALSE, (float*) win_state.mvp);
+        glUniformMatrix4fv(pcl_shader_mvp, 1, GL_FALSE, (float*) state.mvp);
         glUniform3fv(pcl_shader_col, 1, (float[3]) {0.8f, 0.2f, 0.2f});
         draw_point_cloud(&pcl);
+
+        glUseProgram(compass_shader.id);
+        glUniformMatrix4fv(compass_shader_mvp, 1, GL_FALSE, (float*) state.mvp);
+        draw_compass(&compass, 0);
+
 
         glfwSwapBuffers(window);
     }
