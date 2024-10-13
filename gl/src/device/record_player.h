@@ -7,9 +7,9 @@ struct RecordPlayer {
     int height;
     int count;
 
-    RecordData* record_data;
-    float* projection_data;
-
+    RecordData record_data;
+    float* frame;
+    
     int idx;
     float frame_time;
     float last_frame_time;
@@ -19,4 +19,5 @@ struct RecordPlayer {
 typedef struct RecordPlayer RecordPlayer;
 
 bool make_record_player(RecordPlayer* record_player, const char* file);
-bool poll_record_player(RecordPlayer* record_player, float** projection_data, uint16_t** data);
+bool poll_record_player(RecordPlayer* record_player, float** data);
+const float* get_pcl_proj_record_player(RecordPlayer* record_player);

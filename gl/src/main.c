@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
 
     ShaderProgram pcl_shader = {};
     if (!load_shader_program(&pcl_shader, "assets/shaders/pcl.vert", "assets/shaders/col.frag")) {
-        fprintf(stderr, "Could not create compass shader\n");
+        fprintf(stderr, "Could not create PCL shader\n");
         return 1;
     }
 
@@ -68,7 +68,9 @@ int main(int argc, char** argv) {
 
     PointCloud pcl = {};
     make_point_cloud(&pcl, (float[3]) {0.8f, 0.2f, 0.2f});
-
+    const float* proj_data = get_pcl_proj_record_player(&player);
+    update_point_cloud_proj(&pcl, proj_data, player.count);
+    
     Compass compass;
     make_compass(&compass);
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -77,10 +79,9 @@ int main(int argc, char** argv) {
 
         glClear(GL_COLOR_BUFFER_BIT);
 
-        uint16_t* data;
-        float* proj_data;
-        if (poll_record_player(&player, &proj_data, &data)) {
-            update_point_cloud(&pcl, proj_data, player.count);
+        float* data;
+        if (poll_record_player(&player, &data)) {
+            update_point_cloud(&pcl, data, player.count);
         }
 
         glUseProgram(compass_shader.id);
