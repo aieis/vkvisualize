@@ -9,7 +9,7 @@ LD = gcc
 CCFLAGS = $(INC)
 LDFLAGS = $(LIB)
 
-build/pcl-viewer: build/main.o build/shader.o build/compass.o build/glad.o build/pcl.o
+build/pcl-viewer: build/main.o build/shader.o build/compass.o build/glad.o build/pcl.o build/record.o build/record_player.o
 	$(LD) -o $@ $^ $(LDFLAGS)
 
 build/main.o: src/main.c src/graphics/shader.h src/state.h
@@ -28,6 +28,9 @@ build/glad.o: src/glad.c
 	$(CC) -c -o $@ $< $(CCFLAGS)
 
 build/record.o: src/utils/record.c src/utils/record.h
+	$(CC) -c -o $@ $< $(CCFLAGS)
+
+build/record_player.o: src/device/record_player.c src/utils/record.h
 	$(CC) -c -o $@ $< $(CCFLAGS)
 
 build/record.oo: tools/record.c src/utils/record.h

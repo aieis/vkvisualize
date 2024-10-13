@@ -108,5 +108,103 @@
    "-Ithird_party/include"
   ],
   "file": "src/graphics/pcl.c"
+ },
+ {
+  "directory": "D:\\projects\\vkvisualize\\gl",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "build/main.o",
+   "src/main.c",
+   "-IC:/lib/vcpkg/installed/x64-windows/include",
+   "-Iinclude",
+   "-Ithird_party/include"
+  ],
+  "file": "src/main.c"
+ },
+ {
+  "directory": "D:\\projects\\vkvisualize\\gl",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "build/shader.o",
+   "src/graphics/shader.c",
+   "-IC:/lib/vcpkg/installed/x64-windows/include",
+   "-Iinclude",
+   "-Ithird_party/include"
+  ],
+  "file": "src/graphics/shader.c"
+ },
+ {
+  "directory": "D:\\projects\\vkvisualize\\gl",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "build/compass.o",
+   "src/graphics/compass.c",
+   "-IC:/lib/vcpkg/installed/x64-windows/include",
+   "-Iinclude",
+   "-Ithird_party/include"
+  ],
+  "file": "src/graphics/compass.c"
+ },
+ {
+  "directory": "D:\\projects\\vkvisualize\\gl",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "build/glad.o",
+   "src/glad.c",
+   "-IC:/lib/vcpkg/installed/x64-windows/include",
+   "-Iinclude",
+   "-Ithird_party/include"
+  ],
+  "file": "src/glad.c"
+ },
+ {
+  "directory": "D:\\projects\\vkvisualize\\gl",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "build/pcl.o",
+   "src/graphics/pcl.c",
+   "-IC:/lib/vcpkg/installed/x64-windows/include",
+   "-Iinclude",
+   "-Ithird_party/include"
+  ],
+  "file": "src/graphics/pcl.c"
+ },
+ {
+  "directory": "D:\\projects\\vkvisualize\\gl",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "build/record.o",
+   "src/utils/record.c",
+   "-IC:/lib/vcpkg/installed/x64-windows/include",
+   "-Iinclude",
+   "-Ithird_party/include"
+  ],
+  "file": "src/utils/record.c"
+ },
+ {
+  "directory": "D:\\projects\\vkvisualize\\gl",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "build/record_player.o",
+   "src/device/record_player.c",
+   "-IC:/lib/vcpkg/installed/x64-windows/include",
+   "-Iinclude",
+   "-Ithird_party/include"
+  ],
+  "file": "src/device/record_player.c"
  }
 ]
