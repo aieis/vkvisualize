@@ -6,9 +6,19 @@
 #include "graphics/shader.h"
 #include "graphics/compass.h"
 #include "graphics/pcl.h"
+
+#include "device/record_player.h"
 #include "state.h"
 
 int main(int argc, char** argv) {
+
+    RecordPlayer player;
+    const char* target_recording = "assets/recordings/record1.rdbin";
+    if (!make_record_player(&player, target_recording)) {
+        fprintf(stderr, "Could not open player for recording: '%s'\n", target_recording);
+        return 1;
+    }
+    
     if (!glfwInit()) {
         fprintf(stderr, "Could not initialize glfw\n");
         return 1;
@@ -58,7 +68,6 @@ int main(int argc, char** argv) {
 
     PointCloud pcl = {};
     make_point_cloud(&pcl, (float[3]) {0.8f, 0.2f, 0.2f});
-    update_point_cloud(&pcl, (float[6]) {0.5, 0.5, 0.0, -0.5, -0.5, 0.0}, 2);
 
     Compass compass;
     make_compass(&compass);
@@ -67,6 +76,12 @@ int main(int argc, char** argv) {
         glfwPollEvents();
 
         glClear(GL_COLOR_BUFFER_BIT);
+
+        uint16_t* data;
+        float* proj_data;
+        if (poll_record_player(&player, &proj_data, &data)) {
+            update_point_cloud(&pcl, proj_data, player.count);
+        }
 
         glUseProgram(compass_shader.id);
         glUniformMatrix4fv(compass_shader_mvp, 1, GL_FALSE, (float*) win_state.mvp);

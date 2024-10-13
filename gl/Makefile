@@ -34,7 +34,7 @@ build/record_player.o: src/device/record_player.c src/utils/record.h
 	$(CC) -c -o $@ $< $(CCFLAGS)
 
 build/record.oo: tools/record.c src/utils/record.h
-	$(CC) -c -o $@ $< $(CCFLAGS) -Isrc
+	$(CC) -c -o $@ $< $(CCFLAGS)
 
 build/record: build/record.oo build/record.o
 	$(LD) -o $@ $^ $(LDFLAGS)

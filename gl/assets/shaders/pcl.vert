@@ -15,9 +15,8 @@ void main()
     if (dist < 0.001) {
         gl_PointSize = 0;
     } else {
-        gl_PointSize = 0.01 / dist;        
+        gl_PointSize = 1 / dist;
     }
 
-    gl_PointSize = 5.0;
     vs_color = col;
 }
