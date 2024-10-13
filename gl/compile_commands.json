@@ -1,66 +1,112 @@
 [
-  {
-    "arguments": [
-      "/usr/bin/clang",
-      "-g",
-      "-c",
-      "-IC:/lib/vcpkg/installed/x64-windows/include",
-      "-Iinclude",
-      "-Ithird_party/include",
-      "-o",
-      "build/main.o",
-      "src/main.c"
-    ],
-    "directory": "/home/ahmed/proj/vkvisualize/gl",
-    "file": "/home/ahmed/proj/vkvisualize/gl/src/main.c",
-    "output": "/home/ahmed/proj/vkvisualize/gl/build/main.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/clang",
-      "-g",
-      "-c",
-      "-IC:/lib/vcpkg/installed/x64-windows/include",
-      "-Iinclude",
-      "-Ithird_party/include",
-      "-o",
-      "build/shader.o",
-      "src/graphics/shader.c"
-    ],
-    "directory": "/home/ahmed/proj/vkvisualize/gl",
-    "file": "/home/ahmed/proj/vkvisualize/gl/src/graphics/shader.c",
-    "output": "/home/ahmed/proj/vkvisualize/gl/build/shader.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/clang",
-      "-g",
-      "-c",
-      "-IC:/lib/vcpkg/installed/x64-windows/include",
-      "-Iinclude",
-      "-Ithird_party/include",
-      "-o",
-      "build/compass.o",
-      "src/graphics/compass.c"
-    ],
-    "directory": "/home/ahmed/proj/vkvisualize/gl",
-    "file": "/home/ahmed/proj/vkvisualize/gl/src/graphics/compass.c",
-    "output": "/home/ahmed/proj/vkvisualize/gl/build/compass.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/clang",
-      "-g",
-      "-c",
-      "-IC:/lib/vcpkg/installed/x64-windows/include",
-      "-Iinclude",
-      "-Ithird_party/include",
-      "-o",
-      "build/glad.o",
-      "src/glad.c"
-    ],
-    "directory": "/home/ahmed/proj/vkvisualize/gl",
-    "file": "/home/ahmed/proj/vkvisualize/gl/src/glad.c",
-    "output": "/home/ahmed/proj/vkvisualize/gl/build/glad.o"
-  }
-]
+ {
+  "directory": "D:\\projects\\vkvisualize\\gl",
+  "arguments": [
+   "gcc",
+   "-o",
+   "build/record",
+   "tools/record.c",
+   "-IC:/lib/vcpkg/installed/x64-windows/include",
+   "-Iinclude",
+   "-Ithird_party/include",
+   "-LC:/lib/vcpkg/installed/x64-windows/lib",
+   "-lglfw3dll",
+   "-lopengl32",
+   "-luser32",
+   "-lgdi32",
+   "-lkernel32",
+   "-lshell32"
+  ],
+  "file": "tools/record.c"
+ },
+ {
+  "directory": "d:\\projects\\vkvisualize\\gl",
+  "arguments": [
+   "gcc",
+   "-o",
+   "build/record",
+   "tools/record.c",
+   "-IC:/lib/vcpkg/installed/x64-windows/include",
+   "-Iinclude",
+   "-Ithird_party/include",
+   "-LC:/lib/vcpkg/installed/x64-windows/lib",
+   "-lglfw3dll",
+   "-lopengl32",
+   "-luser32",
+   "-lgdi32",
+   "-lkernel32",
+   "-lshell32"
+  ],
+  "file": "tools/record.c"
+ },
+ {
+  "directory": "d:\\projects\\vkvisualize\\gl",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "build/main.o",
+   "src/main.c",
+   "-IC:/lib/vcpkg/installed/x64-windows/include",
+   "-Iinclude",
+   "-Ithird_party/include"
+  ],
+  "file": "src/main.c"
+ },
+ {
+  "directory": "d:\\projects\\vkvisualize\\gl",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "build/shader.o",
+   "src/graphics/shader.c",
+   "-IC:/lib/vcpkg/installed/x64-windows/include",
+   "-Iinclude",
+   "-Ithird_party/include"
+  ],
+  "file": "src/graphics/shader.c"
+ },
+ {
+  "directory": "d:\\projects\\vkvisualize\\gl",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "build/compass.o",
+   "src/graphics/compass.c",
+   "-IC:/lib/vcpkg/installed/x64-windows/include",
+   "-Iinclude",
+   "-Ithird_party/include"
+  ],
+  "file": "src/graphics/compass.c"
+ },
+ {
+  "directory": "d:\\projects\\vkvisualize\\gl",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "build/glad.o",
+   "src/glad.c",
+   "-IC:/lib/vcpkg/installed/x64-windows/include",
+   "-Iinclude",
+   "-Ithird_party/include"
+  ],
+  "file": "src/glad.c"
+ },
+ {
+  "directory": "d:\\projects\\vkvisualize\\gl",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "build/pcl.o",
+   "src/graphics/pcl.c",
+   "-IC:/lib/vcpkg/installed/x64-windows/include",
+   "-Iinclude",
+   "-Ithird_party/include"
+  ],
+  "file": "src/graphics/pcl.c"
+ }
+]

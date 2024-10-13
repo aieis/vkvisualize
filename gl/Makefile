@@ -1,10 +1,10 @@
 THIRD_PARTY = C:/lib/vcpkg/installed/x64-windows
 
 INC = -I$(THIRD_PARTY)/include -Iinclude -Ithird_party/include
-#LIB = -L$(THIRD_PARTY)/lib -lglfw3dll -lopengl32 -luser32 -lgdi32 -lkernel32 -lshell32
-LIB = -lglfw -lGL -lm
-CC = clang -g 
-LD = clang -g
+LIB = -L$(THIRD_PARTY)/lib -lglfw3dll -lopengl32 -luser32 -lgdi32 -lkernel32 -lshell32 -lrealsense2
+#LIB = -lglfw -lGL -lm
+CC = gcc
+LD = gcc
 
 CCFLAGS = $(INC)
 LDFLAGS = $(LIB)
@@ -27,6 +27,17 @@ build/pcl.o: src/graphics/pcl.c src/graphics/pcl.h
 build/glad.o: src/glad.c
 	$(CC) -c -o $@ $< $(CCFLAGS)
 
+build/record.o: src/utils/record.c src/utils/record.h
+	$(CC) -c -o $@ $< $(CCFLAGS)
+
+build/record.oo: tools/record.c src/utils/record.h
+	$(CC) -c -o $@ $< $(CCFLAGS) -Isrc
+
+build/record: build/record.oo build/record.o
+	$(LD) -o $@ $^ $(LDFLAGS)
+
+all: build/record build/pcl-viewer
+
 run: build/pcl-viewer
 	@echo "Running: " $^
 	@$^	
@@ -34,3 +45,4 @@ run: build/pcl-viewer
 clean:
 	rm build/*.o
 	rm build/pcl-viewer
+	rm build/record
