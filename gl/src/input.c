@@ -8,6 +8,10 @@
 #include "cglm/affine.h"
 #include "cglm/vec3.h"
 
+static bool _KEYPRESS_MAP[] = {
+    [GLFW_KEY_LAST] = false
+};
+
 void init_mvp(ProgramState* state) {
     glm_mat4_identity(state->model);
     glm_perspective(glm_rad(45.0), (float) state->W / (float) state->H, 0.1, 100, state->projection);
@@ -40,9 +44,15 @@ bool key_down(GLFWwindow* window, int key) {
     return key_state == GLFW_PRESS || key_state == GLFW_REPEAT;
 }
 
-void process_events(ProgramState* state, GLFWwindow* window) {
+bool key_press(GLFWwindow* window, int key) {
+    int key_state = glfwGetKey(window, key);
+    return key_state == GLFW_PRESS;
+}
 
-    const float delta = 0.001;
+void process_events_cb(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    ProgramState* state = glfwGetWindowUserPointer(window);
+
+    const float delta = 0.01;
     struct MovementShortcuts movement_shortcuts[6] =
         {
             {GLFW_KEY_W,            -delta, 2},
@@ -87,8 +97,12 @@ void process_events(ProgramState* state, GLFWwindow* window) {
         glfwSetWindowShouldClose(window, 1);
     }
 
-    if (key_down(window, GLFW_KEY_T)) {
+    if (key_press(window, GLFW_KEY_T)) {
         init_mvp(state);
+    }
+
+    if (key_press(window, GLFW_KEY_I)) {
+        state->conf = !state->conf;
     }
     update_mvp(state);
 }

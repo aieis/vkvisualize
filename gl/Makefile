@@ -9,10 +9,10 @@ LD = gcc
 CCFLAGS = $(INC) -DCGLM_STATIC=ON -DCGLM_SHARED=OFF
 LDFLAGS = $(LIB)
 
-build/pcl-viewer: build/main.o build/shader.o build/compass.o build/glad.o build/pcl.o build/record.o build/record_player.o build/input.o
+build/pcl-viewer: build/main.o build/shader.o build/compass.o build/glad.o build/pcl.o build/record.o build/record_player.o build/input.o build/pcl_proc.o
 	$(LD) -o $@ $^ $(LDFLAGS)
 
-build/main.o: src/main.c src/state.h src/graphics/shader.h src/graphics/pcl.h src/utils/record.h src/device/record_player.h src/input.h
+build/main.o: src/main.c src/state.h src/graphics/shader.h src/graphics/pcl.h src/utils/record.h src/device/record_player.h src/input.h src/pcl/pcl_proc.h
 	$(CC) -c -o $@ $< $(CCFLAGS)
 
 build/input.o: src/input.c src/input.h src/state.h
@@ -25,6 +25,9 @@ build/compass.o: src/graphics/compass.c src/graphics/compass.h
 	$(CC) -c -o $@ $< $(CCFLAGS)
 
 build/pcl.o: src/graphics/pcl.c src/graphics/pcl.h
+	$(CC) -c -o $@ $< $(CCFLAGS)
+
+build/pcl_proc.o: src/pcl/pcl_proc.c src/pcl/pcl_proc.h
 	$(CC) -c -o $@ $< $(CCFLAGS)
 
 build/glad.o: src/glad.c

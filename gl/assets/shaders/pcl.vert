@@ -12,7 +12,7 @@ void main()
 {
     float norm = dist / 1000;
     gl_Position = mvp * vec4(proj.x * norm, proj.y * norm, norm, 1.0);
-    if (abs(norm) < 0.001) {
+    if (abs(norm) < 0.01) {
         gl_PointSize = 0;
     } else {
         gl_PointSize =  0.5 / norm;

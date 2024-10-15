@@ -8,6 +8,9 @@
 #include "graphics/compass.h"
 #include "graphics/pcl.h"
 #include "device/record_player.h"
+
+#include "pcl/pcl_proc.h"
+
 #include "input.h"
 
 int main(int argc, char** argv) {
@@ -39,6 +42,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    glfwSetWindowUserPointer(window, &state);
+    glfwSetKeyCallback(window, process_events_cb);
     glfwMakeContextCurrent(window);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
@@ -59,7 +64,9 @@ int main(int argc, char** argv) {
     }
 
     int compass_shader_mvp = glGetUniformLocation(compass_shader.id, "mvp");
-
+    Compass compass;
+    make_compass(&compass);
+    
     ShaderProgram pcl_shader = {};
     if (!load_shader_program(&pcl_shader, "assets/shaders/pcl.vert", "assets/shaders/col.frag")) {
         fprintf(stderr, "Could not create PCL shader\n");
@@ -71,21 +78,23 @@ int main(int argc, char** argv) {
 
     PointCloud pcl = {};
     make_point_cloud(&pcl, (float[3]) {0.8f, 0.2f, 0.2f});
+
     const float* proj_data = get_pcl_proj_record_player(&player);
     update_point_cloud_proj(&pcl, proj_data, player.count);
+
+    PclProcessor pcl_proc;
+    make_pcl_processor(&pcl_proc, player.width, player.height, 1);
     
-    Compass compass;
-    make_compass(&compass);
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
-        process_events(&state, window);
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         float* data;
         if (poll_record_player(&player, &data)) {
-            update_point_cloud(&pcl, data, player.count);
+            enqueue_pcl_frame(&pcl_proc, data);
+            update_point_cloud(&pcl, state.conf? pcl_proc.depths : data, player.count);
         }
 
         glUseProgram(pcl_shader.id);
