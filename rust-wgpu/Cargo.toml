@@ -1,0 +1,7 @@
+[package]
+name = "rust-wgpu"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+k4a-orbbec-sys = { path="./third_party/k4a-orbbec-sys"}
