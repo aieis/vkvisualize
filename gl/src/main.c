@@ -8,19 +8,26 @@
 #include "graphics/compass.h"
 #include "graphics/pcl.h"
 #include "device/record_player.h"
-
-#include "pcl/pcl_proc.h"
+#include "utils/data.h"
 
 #include "input.h"
 
 int main(int argc, char** argv) {
 
-    RecordPlayer player;
-    const char* target_recording = "assets/recordings/record1.rdbin";
-    if (!make_record_player(&player, target_recording)) {
-        fprintf(stderr, "Could not open player for recording: '%s'\n", target_recording);
-        return 1;
+    Vec recording = make_vec(2, sizeof(char*));
+    vec_push(&recording, &"assets/recordings/record1.rdbin");
+    vec_push(&recording, &"assets/recordings/record2.rdbin");
+
+    Vec record_player = make_vec(2, sizeof(RecordPlayer));
+    for (int i = 0; i < recording.size; i++) {
+        RecordPlayer player;
+        if (make_record_player(&player, * (const char**) vec_i(&recording, i))) {
+            vec_push(&record_player, &player);
+        } else {
+            fprintf(stderr, "Could not open player for recording: '%s'\n", *(const char**) vec_i(&recording, i));
+        }
     }
+    
     
     if (!glfwInit()) {
         fprintf(stderr, "Could not initialize glfw\n");
@@ -66,6 +73,7 @@ int main(int argc, char** argv) {
     int compass_shader_mvp = glGetUniformLocation(compass_shader.id, "mvp");
     Compass compass;
     make_compass(&compass);
+
     
     ShaderProgram pcl_shader = {};
     if (!load_shader_program(&pcl_shader, "assets/shaders/pcl.vert", "assets/shaders/col.frag")) {
@@ -76,31 +84,40 @@ int main(int argc, char** argv) {
     int pcl_shader_mvp = glGetUniformLocation(pcl_shader.id, "mvp");
     int pcl_shader_col = glGetUniformLocation(pcl_shader.id, "col");
 
-    PointCloud pcl = {};
-    make_point_cloud(&pcl, (float[3]) {0.8f, 0.2f, 0.2f});
-
-    const float* proj_data = get_pcl_proj_record_player(&player);
-    update_point_cloud_proj(&pcl, proj_data, player.count);
-
-    PclProcessor pcl_proc;
-    make_pcl_processor(&pcl_proc, player.width, player.height, 1);
+    Vec clouds = make_vec(2, sizeof(PointCloud));
+    for (int i = 0; i < record_player.size; i++) {
+        RecordPlayer* player = vec_i(&record_player, i);
+        PointCloud cloud = {};
+        make_point_cloud(&cloud, (float[3]) {0.8f, 0.2f, 0.2f});
+        const float* proj_data = get_pcl_proj_record_player(player);
+        update_point_cloud_proj(&cloud, proj_data, player->count);
+        vec_push(&clouds, &cloud);
+    }        
     
+    Vec colours = make_vec(2, sizeof(float[3]));
+    vec_push(&colours, &(float[3]){0.8, 0.2, 0.2});
+    vec_push(&colours, &(float[3]){0.2, 0.2, 0.8});
+
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        float* data;
-        if (poll_record_player(&player, &data)) {
-            enqueue_pcl_frame(&pcl_proc, data);
-            update_point_cloud(&pcl, state.conf? pcl_proc.depths : data, player.count);
-        }
-
         glUseProgram(pcl_shader.id);
         glUniformMatrix4fv(pcl_shader_mvp, 1, GL_FALSE, (float*) state.mvp);
-        glUniform3fv(pcl_shader_col, 1, (float[3]) {0.8f, 0.2f, 0.2f});
-        draw_point_cloud(&pcl);
+        
+        float* data;        
+        for (int i = 0; i < record_player.size; i++) {
+            RecordPlayer* player = vec_i(&record_player, i);
+            PointCloud * cloud = vec_i(&clouds, i);
+            float (*col)[3] = vec_i(&colours, i);
+            if (poll_record_player(player, &data)) {
+                update_point_cloud(cloud, data, player->count);
+            }
+            glUniform3fv(pcl_shader_col, 1, *col);
+            draw_point_cloud(cloud);
+        }
 
         glUseProgram(compass_shader.id);
         glUniformMatrix4fv(compass_shader_mvp, 1, GL_FALSE, (float*) state.mvp);

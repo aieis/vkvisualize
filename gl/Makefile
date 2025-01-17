@@ -9,10 +9,10 @@ LD = gcc
 CCFLAGS = $(INC) -DCGLM_STATIC=ON -DCGLM_SHARED=OFF
 LDFLAGS = $(LIB)
 
-build/pcl-viewer: build/main.o build/shader.o build/compass.o build/glad.o build/pcl.o build/record.o build/record_player.o build/input.o build/pcl_proc.o
+build/pcl-viewer: build/main.o build/shader.o build/compass.o build/glad.o build/pcl.o build/record.o build/record_player.o build/input.o build/pcl_proc.o build/data.o
 	$(LD) -o $@ $^ $(LDFLAGS)
 
-build/main.o: src/main.c src/state.h src/graphics/shader.h src/graphics/pcl.h src/utils/record.h src/device/record_player.h src/input.h src/pcl/pcl_proc.h
+build/main.o: src/main.c src/state.h src/graphics/shader.h src/graphics/pcl.h src/utils/record.h src/utils/data.h src/device/record_player.h src/input.h src/pcl/pcl_proc.h
 	$(CC) -c -o $@ $< $(CCFLAGS)
 
 build/input.o: src/input.c src/input.h src/state.h
@@ -34,6 +34,9 @@ build/glad.o: src/glad.c
 	$(CC) -c -o $@ $< $(CCFLAGS)
 
 build/record.o: src/utils/record.c src/utils/record.h
+	$(CC) -c -o $@ $< $(CCFLAGS)
+
+build/data.o: src/utils/data.c src/utils/data.h
 	$(CC) -c -o $@ $< $(CCFLAGS)
 
 build/record_player.o: src/device/record_player.c src/utils/record.h

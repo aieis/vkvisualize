@@ -1,46 +1,6 @@
 [
  {
-  "directory": "D:\\projects\\vkvisualize\\gl",
-  "arguments": [
-   "gcc",
-   "-o",
-   "build/record",
-   "tools/record.c",
-   "-IC:/lib/vcpkg/installed/x64-windows/include",
-   "-Iinclude",
-   "-Ithird_party/include",
-   "-LC:/lib/vcpkg/installed/x64-windows/lib",
-   "-lglfw3dll",
-   "-lopengl32",
-   "-luser32",
-   "-lgdi32",
-   "-lkernel32",
-   "-lshell32"
-  ],
-  "file": "tools/record.c"
- },
- {
-  "directory": "d:\\projects\\vkvisualize\\gl",
-  "arguments": [
-   "gcc",
-   "-o",
-   "build/record",
-   "tools/record.c",
-   "-IC:/lib/vcpkg/installed/x64-windows/include",
-   "-Iinclude",
-   "-Ithird_party/include",
-   "-LC:/lib/vcpkg/installed/x64-windows/lib",
-   "-lglfw3dll",
-   "-lopengl32",
-   "-luser32",
-   "-lgdi32",
-   "-lkernel32",
-   "-lshell32"
-  ],
-  "file": "tools/record.c"
- },
- {
-  "directory": "d:\\projects\\vkvisualize\\gl",
+  "directory": "C:\\Users\\Ahmed\\Home\\pers\\vkvisualize\\gl",
   "arguments": [
    "gcc",
    "-c",
@@ -49,12 +9,14 @@
    "src/main.c",
    "-IC:/lib/vcpkg/installed/x64-windows/include",
    "-Iinclude",
-   "-Ithird_party/include"
+   "-Ithird_party/include",
+   "-DCGLM_STATIC=ON",
+   "-DCGLM_SHARED=OFF"
   ],
   "file": "src/main.c"
  },
  {
-  "directory": "d:\\projects\\vkvisualize\\gl",
+  "directory": "C:\\Users\\Ahmed\\Home\\pers\\vkvisualize\\gl",
   "arguments": [
    "gcc",
    "-c",
@@ -63,12 +25,14 @@
    "src/graphics/shader.c",
    "-IC:/lib/vcpkg/installed/x64-windows/include",
    "-Iinclude",
-   "-Ithird_party/include"
+   "-Ithird_party/include",
+   "-DCGLM_STATIC=ON",
+   "-DCGLM_SHARED=OFF"
   ],
   "file": "src/graphics/shader.c"
  },
  {
-  "directory": "d:\\projects\\vkvisualize\\gl",
+  "directory": "C:\\Users\\Ahmed\\Home\\pers\\vkvisualize\\gl",
   "arguments": [
    "gcc",
    "-c",
@@ -77,12 +41,14 @@
    "src/graphics/compass.c",
    "-IC:/lib/vcpkg/installed/x64-windows/include",
    "-Iinclude",
-   "-Ithird_party/include"
+   "-Ithird_party/include",
+   "-DCGLM_STATIC=ON",
+   "-DCGLM_SHARED=OFF"
   ],
   "file": "src/graphics/compass.c"
  },
  {
-  "directory": "d:\\projects\\vkvisualize\\gl",
+  "directory": "C:\\Users\\Ahmed\\Home\\pers\\vkvisualize\\gl",
   "arguments": [
    "gcc",
    "-c",
@@ -91,12 +57,14 @@
    "src/glad.c",
    "-IC:/lib/vcpkg/installed/x64-windows/include",
    "-Iinclude",
-   "-Ithird_party/include"
+   "-Ithird_party/include",
+   "-DCGLM_STATIC=ON",
+   "-DCGLM_SHARED=OFF"
   ],
   "file": "src/glad.c"
  },
  {
-  "directory": "d:\\projects\\vkvisualize\\gl",
+  "directory": "C:\\Users\\Ahmed\\Home\\pers\\vkvisualize\\gl",
   "arguments": [
    "gcc",
    "-c",
@@ -105,82 +73,14 @@
    "src/graphics/pcl.c",
    "-IC:/lib/vcpkg/installed/x64-windows/include",
    "-Iinclude",
-   "-Ithird_party/include"
+   "-Ithird_party/include",
+   "-DCGLM_STATIC=ON",
+   "-DCGLM_SHARED=OFF"
   ],
   "file": "src/graphics/pcl.c"
  },
  {
-  "directory": "D:\\projects\\vkvisualize\\gl",
-  "arguments": [
-   "gcc",
-   "-c",
-   "-o",
-   "build/main.o",
-   "src/main.c",
-   "-IC:/lib/vcpkg/installed/x64-windows/include",
-   "-Iinclude",
-   "-Ithird_party/include"
-  ],
-  "file": "src/main.c"
- },
- {
-  "directory": "D:\\projects\\vkvisualize\\gl",
-  "arguments": [
-   "gcc",
-   "-c",
-   "-o",
-   "build/shader.o",
-   "src/graphics/shader.c",
-   "-IC:/lib/vcpkg/installed/x64-windows/include",
-   "-Iinclude",
-   "-Ithird_party/include"
-  ],
-  "file": "src/graphics/shader.c"
- },
- {
-  "directory": "D:\\projects\\vkvisualize\\gl",
-  "arguments": [
-   "gcc",
-   "-c",
-   "-o",
-   "build/compass.o",
-   "src/graphics/compass.c",
-   "-IC:/lib/vcpkg/installed/x64-windows/include",
-   "-Iinclude",
-   "-Ithird_party/include"
-  ],
-  "file": "src/graphics/compass.c"
- },
- {
-  "directory": "D:\\projects\\vkvisualize\\gl",
-  "arguments": [
-   "gcc",
-   "-c",
-   "-o",
-   "build/glad.o",
-   "src/glad.c",
-   "-IC:/lib/vcpkg/installed/x64-windows/include",
-   "-Iinclude",
-   "-Ithird_party/include"
-  ],
-  "file": "src/glad.c"
- },
- {
-  "directory": "D:\\projects\\vkvisualize\\gl",
-  "arguments": [
-   "gcc",
-   "-c",
-   "-o",
-   "build/pcl.o",
-   "src/graphics/pcl.c",
-   "-IC:/lib/vcpkg/installed/x64-windows/include",
-   "-Iinclude",
-   "-Ithird_party/include"
-  ],
-  "file": "src/graphics/pcl.c"
- },
- {
-  "directory": "D:\\projects\\vkvisualize\\gl",
+  "directory": "C:\\Users\\Ahmed\\Home\\pers\\vkvisualize\\gl",
   "arguments": [
    "gcc",
    "-c",
@@ -189,12 +89,14 @@
    "src/utils/record.c",
    "-IC:/lib/vcpkg/installed/x64-windows/include",
    "-Iinclude",
-   "-Ithird_party/include"
+   "-Ithird_party/include",
+   "-DCGLM_STATIC=ON",
+   "-DCGLM_SHARED=OFF"
   ],
   "file": "src/utils/record.c"
  },
  {
-  "directory": "D:\\projects\\vkvisualize\\gl",
+  "directory": "C:\\Users\\Ahmed\\Home\\pers\\vkvisualize\\gl",
   "arguments": [
    "gcc",
    "-c",
@@ -203,8 +105,42 @@
    "src/device/record_player.c",
    "-IC:/lib/vcpkg/installed/x64-windows/include",
    "-Iinclude",
-   "-Ithird_party/include"
+   "-Ithird_party/include",
+   "-DCGLM_STATIC=ON",
+   "-DCGLM_SHARED=OFF"
   ],
   "file": "src/device/record_player.c"
+ },
+ {
+  "directory": "C:\\Users\\Ahmed\\Home\\pers\\vkvisualize\\gl",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "build/input.o",
+   "src/input.c",
+   "-IC:/lib/vcpkg/installed/x64-windows/include",
+   "-Iinclude",
+   "-Ithird_party/include",
+   "-DCGLM_STATIC=ON",
+   "-DCGLM_SHARED=OFF"
+  ],
+  "file": "src/input.c"
+ },
+ {
+  "directory": "C:\\Users\\Ahmed\\Home\\pers\\vkvisualize\\gl",
+  "arguments": [
+   "gcc",
+   "-c",
+   "-o",
+   "build/pcl_proc.o",
+   "src/pcl/pcl_proc.c",
+   "-IC:/lib/vcpkg/installed/x64-windows/include",
+   "-Iinclude",
+   "-Ithird_party/include",
+   "-DCGLM_STATIC=ON",
+   "-DCGLM_SHARED=OFF"
+  ],
+  "file": "src/pcl/pcl_proc.c"
  }
 ]
