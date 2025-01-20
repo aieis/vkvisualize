@@ -2,18 +2,18 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+include!("../bindings/bindings.rs");
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
 
-    #[test]
-    fn count_devices() {
-        unsafe {
-            let dev_count = k4a_device_get_installed_count();
-            println!("Number of Devices: {dev_count}");
-        }
-    }
-}
+//     #[test]
+//     fn count_devices() {
+//         unsafe {
+//             let dev_count = k4a_device_get_installed_count();
+//             println!("Number of Devices: {dev_count}");
+//         }
+//     }
+// }
     

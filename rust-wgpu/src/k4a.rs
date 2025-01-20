@@ -69,8 +69,8 @@ impl Image {
     }
 
     // TODO: Make safe (but if it becomes a vec then it's expensive)
-    pub unsafe fn get_buffer<'a>(&self) -> &'a[u8] {
-        core::slice::from_raw_parts(k4a_image_get_buffer(self.handle), k4a_image_get_size(self.handle))
+    pub fn get_buffer(&self) -> &[u8] {
+        unsafe { core::slice::from_raw_parts(k4a_image_get_buffer(self.handle), k4a_image_get_size(self.handle) as usize) }
     }
 }
 
