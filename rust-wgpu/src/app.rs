@@ -5,7 +5,7 @@ use pollster::FutureExt as _;
 use k4a_orbbec_sys::*;
 use rust_wgpu::{Vertex, INDICES, VERTICES};
 
-use crate::k4a;
+use crate::{k4a, texture::Texture};
 
 const OUT_WIDTH : usize = 60;
 const OUT_HEIGHT : usize = 40;
@@ -24,7 +24,7 @@ pub struct App<'a> {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
-    diffuse_texture: wgpu::Texture,
+    texture: Texture,
     diffuse_bind_group: wgpu::BindGroup,
     window: &'a Window,
 }
@@ -115,34 +115,11 @@ impl<'a> App<'a> {
 
         let cap = devs[0].get_capture(500).expect("First frame failed!");
         let im = cap.get_depth_image();
-        let texture_size = wgpu::Extent3d {width: im.width as u32, height: im.height as u32, depth_or_array_layers: 1};
-        let diffuse_texture = device.create_texture(&wgpu::TextureDescriptor {
-            size: texture_size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth16Unorm,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            label: Some("diffuse_texture"),
-            view_formats: &[]
-        });
-
-        let write_data = wgpu::ImageCopyTexture {
-            texture: &diffuse_texture, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All
-        };
-        let write_layout = wgpu::ImageDataLayout {
-            offset: 0, bytes_per_row: Some(2 * im.width as u32), rows_per_image: Some(im.height as u32)
-        };
-
-        queue.write_texture(write_data, &im.get_buffer(), write_layout, texture_size);
-
-        let diffuse_texture_view = diffuse_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let diffuse_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::ClampToEdge, address_mode_v: wgpu::AddressMode::ClampToEdge, address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Nearest, mipmap_filter: wgpu::FilterMode::Nearest,
-            ..Default::default()
-        });
-
+        let texture = Texture::from_bytes(
+            &device, &queue, wgpu::TextureFormat::Depth16Unorm, "Texture",
+            im.get_buffer(), im.width as u32, im.height as u32, im.width as u32 * 2
+        );
+        
         im.release();
         cap.release();
 
@@ -169,8 +146,8 @@ impl<'a> App<'a> {
         let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &texture_bind_group_layout,
             entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&diffuse_texture_view) },
-                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&diffuse_sampler) }
+                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&texture.view) },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&texture.sampler) }
             ],
             label: Some("diffuse_bind_group")
         });
@@ -232,7 +209,7 @@ impl<'a> App<'a> {
             vertex_buffer,
             index_buffer,
             num_indices,
-            diffuse_texture,
+            texture,
             diffuse_bind_group,
             render_pipeline
         }
@@ -246,17 +223,7 @@ impl<'a> App<'a> {
 
         if let Ok(cap) = self.devs[0].get_capture(33) {
             let im = cap.get_depth_image();
-
-            let texture_size = wgpu::Extent3d {width: im.width as u32, height: im.height as u32, depth_or_array_layers: 1};
-            let write_data = wgpu::ImageCopyTexture {
-                texture: &self.diffuse_texture, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All
-            };
-            let write_layout = wgpu::ImageDataLayout {
-                offset: 0, bytes_per_row: Some(2 * im.width as u32), rows_per_image: Some(im.height as u32)
-            };
-
-            self.queue.write_texture(write_data, &im.get_buffer(), write_layout, texture_size);
-            
+            self.texture.update(&self.queue, &im.get_buffer());
             im.release();
             cap.release();
         }

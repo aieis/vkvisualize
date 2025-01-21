@@ -1,3 +1,4 @@
+pub mod texture;
 pub mod k4a;
 pub mod app;
 
