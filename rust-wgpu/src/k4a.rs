@@ -24,12 +24,13 @@ impl Device {
         }
     }
 
-    pub fn get_capture(&self, timeout_in_ms: i32) -> Capture {
+    pub fn get_capture(&self, timeout_in_ms: i32) -> Result<Capture, k4a_wait_result_t> {
         unsafe {
             let mut cap: k4a_capture_t = std::mem::zeroed();
-            k4a_device_get_capture(self.handle, &mut cap, timeout_in_ms);
-            Capture {
-                handle: cap
+            let res = k4a_device_get_capture(self.handle, &mut cap, timeout_in_ms);
+            match res {
+                k4a_wait_result_t::K4A_WAIT_RESULT_SUCCEEDED => Ok(Capture::from_handle(cap)),
+                _ => Err(res)
             }
         }
     }
@@ -43,7 +44,9 @@ pub struct Capture {
 }
 
 impl Capture {
+    pub fn from_handle(handle: k4a_capture_t) -> Capture { Capture { handle} }
     pub fn get_depth_image(&self)  -> Image { Image::from_handle(unsafe { k4a_capture_get_depth_image(self.handle) } ) }
+    pub fn release(&self) { unsafe { k4a_capture_release(self.handle) } }
 }
 
 pub struct Image {
@@ -68,10 +71,11 @@ impl Image {
         
     }
 
-    // TODO: Make safe (but if it becomes a vec then it's expensive)
     pub fn get_buffer(&self) -> &[u8] {
         unsafe { core::slice::from_raw_parts(k4a_image_get_buffer(self.handle), k4a_image_get_size(self.handle) as usize) }
     }
+
+    pub fn release(&self) { unsafe { k4a_image_release(self.handle) } }
 }
 
 pub fn device_get_installed_count() -> u32 { unsafe { k4a_device_get_installed_count() } }
