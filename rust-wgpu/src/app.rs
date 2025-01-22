@@ -1,36 +1,19 @@
-use winit::{event::{ElementState, KeyEvent, WindowEvent}, event_loop::EventLoopWindowTarget, keyboard::{KeyCode, PhysicalKey}, window::Window};
-use wgpu::util::DeviceExt;
-use pollster::FutureExt as _;
-
 use k4a_orbbec_sys::*;
-use rust_wgpu::{Vertex, INDICES, VERTICES};
-
-use crate::{k4a, texture::Texture};
+use crate::k4a;
 
 const OUT_WIDTH : usize = 60;
 const OUT_HEIGHT : usize = 40;
 const D : [char; 11] = [' ', '.', ',', '*', '+', ':', ';', '#', '@', '%', ' '];
 
-pub struct App<'a> {
-    /* Logic */
-    devs: Vec<k4a::Device>,
-
-    surface: wgpu::Surface<'a>,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    config: wgpu::SurfaceConfiguration,
-    size: winit::dpi::PhysicalSize<u32>,
-    render_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    num_indices: u32,
-    texture: Texture,
-    diffuse_bind_group: wgpu::BindGroup,
-    window: &'a Window,
+pub struct App {
+    pub k4a_device: Vec<k4a::Device>,
+    pub device: Vec<Device>,
+    pub depth: Vec<Option<k4a::Image>>,
+    pub proj: Vec<Option<k4a::Image>>
 }
 
-impl<'a> App<'a> {
-    pub fn new(window: &'a Window) -> App <'a>{
+impl App {
+    pub fn new() ->  Self {
         let dev_count = k4a::device_get_installed_count();
 
         println!("Number of Devices: {dev_count}");
@@ -50,247 +33,80 @@ impl<'a> App<'a> {
             disable_streaming_indicator: false,
         };
 
-        let mut devs = Vec::new();
+        let mut k4a_device = Vec::new();
+        let mut device = Vec::new();
+        let mut depth = Vec::new();
+        let mut proj = Vec::new();
 
         for i in 0..dev_count {
             let dev = k4a::Device::open(i);
             dev.start_cameras(device_config);
-            devs.push(dev);
+            k4a_device.push(dev);
+
+            let dev = Device {
+                rotation: cgmath::Vector3::new(0.0, 0.0, 0.0),
+                location: cgmath::Vector3::new(0.0, 0.0, 0.0),
+            };
+
+            device.push(dev);
+            depth.push(None);
+            proj.push(None);
         }
 
-        let size = window.inner_size();
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::PRIMARY,
-            ..Default::default()
-        });
-
-        let surface = instance.create_surface(window).unwrap();
-        let adapter = instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::default(),
-            compatible_surface: Some(&surface),
-            force_fallback_adapter: false,
-        }).block_on().unwrap();
-
-        let (device, queue) = adapter.request_device(
-            &wgpu::DeviceDescriptor {
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
-                label: None,
-                memory_hints: Default::default(),
-            },
-            None,
-        ).block_on().unwrap();
-
-
-        let surface_caps = surface.get_capabilities(&adapter);
-        let surface_format = surface_caps.formats.iter()
-            .find(|f| f.is_srgb())
-            .copied()
-            .unwrap_or(surface_caps.formats[0]);
-
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface_format,
-            width: size.width,
-            height: size.height,
-            present_mode: surface_caps.present_modes[0],
-            alpha_mode: surface_caps.alpha_modes[0],
-            view_formats: vec![],
-            desired_maximum_frame_latency: 2,
-        };
-
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(INDICES),
-            usage: wgpu::BufferUsages::INDEX
-        });
-
-        let num_indices = INDICES.len() as u32;
-
-        let cap = devs[0].get_capture(500).expect("First frame failed!");
-        let im = cap.get_depth_image();
-        let texture = Texture::from_bytes(
-            &device, &queue, wgpu::TextureFormat::Depth16Unorm, "Texture",
-            im.get_buffer(), im.width as u32, im.height as u32, im.width as u32 * 2
-        );
-        
-        im.release();
-        cap.release();
-
-        let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false, sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2
-                    },
-                    count: None
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None
-                }
-            ],
-            label: Some("texture_bind_group_layout")
-        });
-
-        let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&texture.view) },
-                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&texture.sampler) }
-            ],
-            label: Some("diffuse_bind_group")
-        });
-
-        let shader = device.create_shader_module(wgpu::include_wgsl!("../assets/shaders/shader.wgsl"));
-        let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[&texture_bind_group_layout],
-            push_constant_ranges: &[],
-        });
-
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[Vertex::desc()],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-            cache: None,
-        });
-
-
-        App {
-            devs,
-            window,
-            surface,
+        Self {
+            k4a_device,
             device,
-            queue,
-            config,
-            size,
-            vertex_buffer,
-            index_buffer,
-            num_indices,
-            texture,
-            diffuse_bind_group,
-            render_pipeline
+            depth,
+            proj
         }
     }
 
-    pub fn update(&mut self, event: &WindowEvent, control_flow: &EventLoopWindowTarget<()>) {
-        if should_close(event) {
-            self.stop();
-            control_flow.exit();
-        }
+    pub fn update(&mut self) {
+        for i in 0..self.k4a_device.len() {
 
-        if let Ok(cap) = self.devs[0].get_capture(33) {
-            let im = cap.get_depth_image();
-            self.texture.update(&self.queue, &im.get_buffer());
-            im.release();
-            cap.release();
-        }
-
-
-        match event {
-            WindowEvent::Resized(size) => { self.resize(*size); }
-            WindowEvent::RedrawRequested => {
-                self.window().request_redraw();
-                let _ = self.draw();
+            /* TODO: Might be able to offload to caller */
+            if self.depth[i].is_some() {
+                self.depth[i].as_ref().unwrap().release();
+                self.depth[i] = None;
             }
-            _ => {}
+            
+            if let Ok(cap) = self.k4a_device[i].get_capture(1) {
+                let im = cap.get_depth_image();
+
+                if self.proj[i].is_none() {
+                    let depth_mode = k4a_depth_mode_t::K4A_DEPTH_MODE_NFOV_UNBINNED;
+                    let color_resolution = k4a_color_resolution_t::K4A_COLOR_RESOLUTION_OFF;
+                    let cal = self.k4a_device[i].get_calibration(depth_mode, color_resolution);
+                    let trans = k4a::Transformation::create(&cal);
+                    let pcl = create_proj(&trans, &im);
+                    self.proj[i] = Some(pcl);                   
+                    trans.destroy();
+                }
+
+                self.depth[i] = Some(im);
+                cap.release();
+            }
         }
-    }
-
-    pub fn draw(&mut self) -> Result<(), wgpu::SurfaceError>{
-        let output = self.surface.get_current_texture()?;
-        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {label: Some("Render Encoder")});
-
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color { r: 0.1, g: 0.2, b: 0.3, a: 1.0, }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
-        }
-
-        self.queue.submit(std::iter::once(encoder.finish()));
-        output.present();
-
-        Ok(())
     }
 
     pub fn stop(&self) {
-        for dev in self.devs.iter() {
+        for dev in self.k4a_device.iter() {
             dev.stop_cameras();
             dev.close();
         }
     }
+}
 
-    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
-        if new_size.width > 0 && new_size.height > 0 {
-            self.size = new_size;
-            self.config.width = new_size.width;
-            self.config.height = new_size.height;
-            self.surface.configure(&self.device, &self.config);
+fn create_proj(trans: &k4a::Transformation, im: &k4a::Image) -> k4a::Image {
+    let im = k4a::Image::create(k4a_image_format_t::K4A_IMAGE_FORMAT_DEPTH16, im.width, im.height, im.stride);
+    unsafe {
+        let buf = k4a_image_get_buffer(im.handle);
+        for i in 0..im.size as isize / 2 {
+            *buf.offset(i+1) = 1;
         }
     }
 
-    pub fn window(&self) -> &Window {
-        self.window
-    }
+    trans.depth_image_to_point_cloud(&im)
 }
 
 #[allow(dead_code)]
@@ -314,29 +130,17 @@ fn print_depth(depth: k4a::Image) {
     }
 }
 
+pub enum StreamType {
+    Color,
+    Depth
+}
 
-fn should_close(event: &WindowEvent) -> bool {
-    match event {
-        WindowEvent::CloseRequested
-            | WindowEvent::KeyboardInput {
-                event:
-                KeyEvent {
-                    state: ElementState::Pressed,
-                    physical_key: PhysicalKey::Code(KeyCode::Escape),
-                    ..
-                },
-                ..
-            }
-        | WindowEvent::KeyboardInput {
-            event:
-            KeyEvent {
-                state: ElementState::Pressed,
-                physical_key: PhysicalKey::Code(KeyCode::KeyQ),
-                ..
-            },
-            ..
-        }
-        => {true},
-        _ => {false}
-    }
+pub struct Stream {
+    depth: k4a::Image,
+    proj: Vec<Vec<f32>>
+}
+
+pub struct Device {
+    pub rotation: cgmath::Vector3<f32>,
+    pub location: cgmath::Vector3<f32>,
 }

@@ -1,3 +1,4 @@
+pub mod graphics;
 pub mod texture;
 pub mod k4a;
 pub mod app;
@@ -15,7 +16,7 @@ pub fn main() {
     let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    let mut app = app::App::new(&window);
+    let mut state = graphics::State::new(&window);
 
     let _ = 
     event_loop.run(move |event, control_flow| {
@@ -23,8 +24,8 @@ pub fn main() {
             Event::WindowEvent {
                 ref event,
                 window_id,
-            } if window_id == app.window().id() => {
-                app.update(event, control_flow);
+            } if window_id == state.window().id() => {
+                state.update(event, control_flow);
             },
             _ => {}
         }
