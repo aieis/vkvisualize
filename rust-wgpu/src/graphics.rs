@@ -1,9 +1,8 @@
 use winit::{event::{ElementState, KeyEvent, WindowEvent}, event_loop::EventLoopWindowTarget, keyboard::{KeyCode, PhysicalKey}, window::Window};
 use wgpu::util::DeviceExt;
 use pollster::FutureExt as _;
+use bytemuck::{Pod, Zeroable};
 
-use k4a_orbbec_sys::*;
-use rust_wgpu::{Vertex, INDICES, VERTICES};
 
 use crate::{k4a, texture::Texture};
 
@@ -23,40 +22,13 @@ pub struct State<'a> {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
-    texture: Vec<Texture>,
+    texture: Texture,
     diffuse_bind_group: wgpu::BindGroup,
     window: &'a Window,
 }
 
 impl<'a> State<'a> {
-    pub fn new(window: &'a Window) -> State <'a>{
-        let dev_count = k4a::device_get_installed_count();
-
-        println!("Number of Devices: {dev_count}");
-        if dev_count <= 0 {
-            println!("No devices connected. Exiting");
-        }
-
-        let device_config = k4a_device_configuration_t {
-            camera_fps: k4a_fps_t::K4A_FRAMES_PER_SECOND_30,
-            color_format: k4a_image_format_t::K4A_IMAGE_FORMAT_COLOR_MJPG,
-            color_resolution: k4a_color_resolution_t::K4A_COLOR_RESOLUTION_OFF,
-            depth_delay_off_color_usec: 0,
-            depth_mode: k4a_depth_mode_t::K4A_DEPTH_MODE_NFOV_UNBINNED,
-            subordinate_delay_off_master_usec: 0,
-            synchronized_images_only: false,
-            wired_sync_mode: k4a_wired_sync_mode_t::K4A_WIRED_SYNC_MODE_STANDALONE,
-            disable_streaming_indicator: false,
-        };
-
-        let mut devs = Vec::new();
-
-        for i in 0..dev_count {
-            let dev = k4a::Device::open(i);
-            dev.start_cameras(device_config);
-            devs.push(dev);
-        }
-
+    pub fn new(window: &'a Window, app: crate::app::App) -> State <'a>{
         let size = window.inner_size();
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,
@@ -112,16 +84,12 @@ impl<'a> State<'a> {
 
         let num_indices = INDICES.len() as u32;
 
-        let cap = devs[0].get_capture(500).expect("First frame failed!");
-        let im = cap.get_depth_image();
+        let im = app.depth[0].as_ref().unwrap();
         let texture = Texture::from_bytes(
             &device, &queue, wgpu::TextureFormat::Depth16Unorm, "Texture",
             im.get_buffer(), im.width as u32, im.height as u32, im.width as u32 * 2
         );
         
-        im.release();
-        cap.release();
-
         let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
@@ -161,7 +129,8 @@ impl<'a> State<'a> {
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState { module: &shader, entry_point: "vs_main", buffers: &[Vertex::desc()], compilation_options: wgpu::PipelineCompilationOptions::default() },
+            vertex: wgpu::VertexState { module: &shader, entry_point: "vs_main",
+                                        buffers: &[Vertex::desc()], compilation_options: wgpu::PipelineCompilationOptions::default() },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
                 entry_point: "fs_main",
@@ -185,7 +154,7 @@ impl<'a> State<'a> {
 
 
         State {
-            devs,
+            app,
             window,
             surface,
             device,
@@ -207,14 +176,12 @@ impl<'a> State<'a> {
             control_flow.exit();
         }
 
-        if let Ok(cap) = self.devs[0].get_capture(33) {
-            let im = cap.get_depth_image();
+        self.app.update();
+
+        if let Some(im) = self.app.depth[0].as_ref() {
             self.texture.update(&self.queue, &im.get_buffer());
-            im.release();
-            cap.release();
         }
-
-
+        
         match event {
             WindowEvent::Resized(size) => { self.resize(*size); }
             WindowEvent::RedrawRequested => {
@@ -259,10 +226,7 @@ impl<'a> State<'a> {
     }
 
     pub fn stop(&self) {
-        for dev in self.devs.iter() {
-            dev.stop_cameras();
-            dev.close();
-        }
+        self.app.stop();
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -278,6 +242,37 @@ impl<'a> State<'a> {
         self.window
     }
 }
+
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Pod, Zeroable)]
+pub struct Vertex {
+    position: [f32; 3],
+    tex_coords: [f32; 2]
+}
+
+impl Vertex {
+    const ATTRIBS: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2];
+    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &Self::ATTRIBS
+        }
+    }
+}
+pub const VERTICES: &[Vertex] = &[
+    Vertex { position: [-1.0, -1.0, 0.0], tex_coords: [1.0, 1.0], },
+    Vertex { position: [ 1.0, -1.0, 0.0], tex_coords: [0.0, 1.0], },
+    Vertex { position: [ 1.0,  1.0, 0.0], tex_coords: [0.0, 0.0], },
+    Vertex { position: [-1.0,  1.0, 0.0], tex_coords: [1.0, 0.0], }
+];
+
+pub const INDICES: &[u16] = &[
+    0, 1, 2,
+    3, 0, 2
+];
+
 
 #[allow(dead_code)]
 fn print_depth(depth: k4a::Image) {

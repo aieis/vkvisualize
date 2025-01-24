@@ -2,6 +2,8 @@ pub mod graphics;
 pub mod texture;
 pub mod k4a;
 pub mod app;
+pub mod streams;
+
 
 use winit::{
     event::*,
@@ -16,7 +18,8 @@ pub fn main() {
     let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    let mut state = graphics::State::new(&window);
+    let app = app::App::new();
+    let mut state = graphics::State::new(&window, app);
 
     let _ = 
     event_loop.run(move |event, control_flow| {

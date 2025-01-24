@@ -39,18 +39,38 @@ impl App {
         let mut proj = Vec::new();
 
         for i in 0..dev_count {
-            let dev = k4a::Device::open(i);
-            dev.start_cameras(device_config);
-            k4a_device.push(dev);
+            let k4a_dev = k4a::Device::open(i);
+            k4a_dev.start_cameras(device_config);
+
+            let cap = k4a_dev.get_capture(1000);
+            if let Err(_) = cap {
+                eprintln!("Could not get capture. Removing camera");
+                k4a_dev.stop_cameras();
+                k4a_dev.close();
+                continue;
+            }
+
+            let cap = cap.unwrap();
+            let im = cap.get_depth_image();
+            let depth_mode = k4a_depth_mode_t::K4A_DEPTH_MODE_NFOV_UNBINNED;
+            let color_resolution = k4a_color_resolution_t::K4A_COLOR_RESOLUTION_OFF;
+            let cal = k4a_dev.get_calibration(depth_mode, color_resolution);
+            let trans = k4a::Transformation::create(&cal);
+            let pcl = create_proj(&trans, &im);
+
+            cap.release();
+            
+            trans.destroy();
 
             let dev = Device {
                 rotation: cgmath::Vector3::new(0.0, 0.0, 0.0),
                 location: cgmath::Vector3::new(0.0, 0.0, 0.0),
             };
 
+            k4a_device.push(k4a_dev);
             device.push(dev);
-            depth.push(None);
-            proj.push(None);
+            depth.push(Some(im));
+            proj.push(Some(pcl));
         }
 
         Self {
@@ -69,20 +89,9 @@ impl App {
                 self.depth[i].as_ref().unwrap().release();
                 self.depth[i] = None;
             }
-            
+
             if let Ok(cap) = self.k4a_device[i].get_capture(1) {
                 let im = cap.get_depth_image();
-
-                if self.proj[i].is_none() {
-                    let depth_mode = k4a_depth_mode_t::K4A_DEPTH_MODE_NFOV_UNBINNED;
-                    let color_resolution = k4a_color_resolution_t::K4A_COLOR_RESOLUTION_OFF;
-                    let cal = self.k4a_device[i].get_calibration(depth_mode, color_resolution);
-                    let trans = k4a::Transformation::create(&cal);
-                    let pcl = create_proj(&trans, &im);
-                    self.proj[i] = Some(pcl);                   
-                    trans.destroy();
-                }
-
                 self.depth[i] = Some(im);
                 cap.release();
             }
