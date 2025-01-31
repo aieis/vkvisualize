@@ -28,6 +28,9 @@ main :: proc() {
     
     gl.ClearColor(0.5, 0.5, 0.5, 0.5);
 
+    shader := ShaderProgram_Create(SHADER_SIMPLE_VERT, SHADER_SIMPLE_FRAG)
+    cube := Cube_Create(0.5)
+
     for {
 
         if glfw.WindowShouldClose(window) || app.should_close {
@@ -37,7 +40,8 @@ main :: proc() {
         glfw.PollEvents();
 
         gl.Clear(gl.COLOR_BUFFER_BIT)
-
+        gl.UseProgram(shader.id)
+        Cube_Draw(&cube)
         glfw.SwapBuffers(window);
     }
 

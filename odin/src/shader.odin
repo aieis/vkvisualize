@@ -19,7 +19,7 @@ ShaderProgram_Create :: proc(vert_src: []u8, frag_src: []u8) -> ShaderProgram {
 
     defer gl.DeleteShader(vert)
 
-    sfrag, frag := Shader_Create(vert_src, gl.VERTEX_SHADER)
+    sfrag, frag := Shader_Create(frag_src, gl.FRAGMENT_SHADER)
     if !sfrag {
         return prog;
     }
@@ -51,8 +51,10 @@ ShaderProgram_Delete :: proc(prog: ShaderProgram) {
 
 Shader_Create :: proc(src: []u8, type: u32) -> (bool, u32) {
     shader := gl.CreateShader(type)
-    length := cast(i32) len(src)
-    gl.ShaderSource(shader, 1, cast(^cstring)&src[0], &length)
+    length := cast(i32) len(src) - 1
+    src_cs := [1]cstring {cast(cstring) &src[0]}
+    gl.ShaderSource(shader, 1, cast(^cstring)&src_cs, &length)
+
     gl.CompileShader(shader)
 
     status : i32 = 0
