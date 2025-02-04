@@ -17,20 +17,19 @@ main :: proc() {
     glfw.MakeContextCurrent(window)
     glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, 4)
     glfw.WindowHint(glfw.CONTEXT_VERSION_MINOR, 6)
-    glfw.WindowHint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE);
+    glfw.WindowHint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
     gl.load_up_to(4, 6, glfw.gl_set_proc_address)
 
-    app := App {should_close=false}
+    app := App_Create()
 
     glfw.SetWindowUserPointer(window, cast(rawptr) &app)
     glfw.SetKeyCallback(window, OnKeyPress)
     glfw.SetMouseButtonCallback(window, OnMouseButton)
+
+    gl.Enable(gl.DEPTH_TEST)
     
     gl.ClearColor(0.5, 0.5, 0.5, 0.5);
-
-    shader := ShaderProgram_Create(SHADER_SIMPLE_VERT, SHADER_SIMPLE_FRAG)
-    cube := Cube_Create(0.5)
-
+    
     for {
 
         if glfw.WindowShouldClose(window) || app.should_close {
@@ -39,9 +38,11 @@ main :: proc() {
 
         glfw.PollEvents();
 
-        gl.Clear(gl.COLOR_BUFFER_BIT)
-        gl.UseProgram(shader.id)
-        Cube_Draw(&cube)
+        gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
+        App_Draw(&app)
+        App_Update(&app)
+        
         glfw.SwapBuffers(window);
     }
 
