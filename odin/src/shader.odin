@@ -6,7 +6,8 @@ import "core:strings"
 import gl "vendor:OpenGL"
 
 ShaderProgram :: struct {
-    id: u32
+    id: u32,
+    uniforms: gl.Uniforms
 }
 
 ShaderProgram_Create :: proc(vert_src: []u8, frag_src: []u8) -> ShaderProgram {
@@ -42,11 +43,17 @@ ShaderProgram_Create :: proc(vert_src: []u8, frag_src: []u8) -> ShaderProgram {
         fmt.eprintfln("Failed to link program: %s", msg_string)
     }
 
-    return ShaderProgram { id = id }
+    uniforms := gl.get_uniforms_from_program(id)
+    return ShaderProgram { id = id, uniforms = uniforms }
+}
+
+ShaderProgram_UniformPosition :: proc(prog: ^ShaderProgram, uniform_name: string) -> i32 {
+    return prog.uniforms[uniform_name].location
 }
 
 ShaderProgram_Delete :: proc(prog: ShaderProgram) {
     gl.DeleteProgram(prog.id)
+    gl.destroy_uniforms(prog.uniforms)
 }
 
 Shader_Create :: proc(src: []u8, type: u32) -> (bool, u32) {

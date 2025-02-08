@@ -20,10 +20,11 @@ main :: proc() {
     glfw.WindowHint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
     gl.load_up_to(4, 6, glfw.gl_set_proc_address)
 
-    app := App_Create()
+    app := App_Create(1.0)
 
     glfw.SetWindowUserPointer(window, cast(rawptr) &app)
     glfw.SetKeyCallback(window, OnKeyPress)
+    glfw.SetWindowSizeCallback(window, OnWindowSize)
     glfw.SetMouseButtonCallback(window, OnMouseButton)
 
     gl.Enable(gl.DEPTH_TEST)
@@ -58,4 +59,10 @@ OnMouseButton :: proc "c" (window: glfw.WindowHandle, button: i32, action: i32, 
     context = runtime.default_context()
     app := cast (^App) glfw.GetWindowUserPointer(window)
     App_OnMouse(app, button, action, mods)    
+}
+
+OnWindowSize :: proc "c" (window: glfw.WindowHandle, width, height: i32) {
+    context = runtime.default_context()
+    app := cast (^App) glfw.GetWindowUserPointer(window)
+    App_OnWindowSize(app, width, height)
 }
