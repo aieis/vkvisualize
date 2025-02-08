@@ -1,5 +1,6 @@
 package main
 
+import "core:fmt"
 import "core:c"
 
 import glfw "vendor:glfw"
@@ -23,7 +24,8 @@ App_Create :: proc() -> App {
         should_close = false,
         mouse_left_down = false,
         shader = shader,
-        cube = cube
+        cube = cube,
+        rotator = Rotator {pitch = 45, yaw = 0, roll = 0}
     }
 }
 
@@ -68,6 +70,7 @@ App_OnMouse :: proc(app: ^App, button: i32, action: i32, mods: i32) {
 
 App_Update :: proc(app: ^App) {
     quat := Quat_Normalized(Rotator_Quat(app.rotator))
+    fmt.println("Rotator: ", app.rotator.pitch, app.rotator.yaw, app.rotator.roll)
     R := Quat_Matrix(quat)
     Cube_Rotate(&app.cube, R)
 }
