@@ -7,6 +7,8 @@ import "core:math/linalg"
 import glfw "vendor:glfw"
 import gl "vendor:OpenGL"
 
+import "./mesh"
+
 
 App :: struct  {
     should_close: bool,
@@ -15,7 +17,8 @@ App :: struct  {
     shader: ShaderProgram,
     cube: Cube,
     camera: Camera,
-    cached_mvp: matrix[4,4] f32
+    cached_mvp: matrix[4,4] f32,
+    thing: Thing
 }
 
 App_Create :: proc(aspect: f32) -> App {
@@ -25,6 +28,9 @@ App_Create :: proc(aspect: f32) -> App {
     cached_mvp := matrix[4,4] f32 {}
 
 
+    cone := mesh.Cone_Create(0.5, 0.5)
+    thing := Thing_Create(cone.vertices, cone.triangles, {0.1, 0.9, 0.1})
+
     return App {
         should_close = false,
         mouse_left_down = false,
@@ -33,6 +39,7 @@ App_Create :: proc(aspect: f32) -> App {
         cube = cube,
         camera = camera,
         cached_mvp = cached_mvp,
+        thing = thing
     }
 }
 
@@ -91,5 +98,6 @@ App_Draw :: proc(app: ^App) {
         app.cached_mvp = app.camera.Mvp
         gl.UniformMatrix4fv(ShaderProgram_UniformPosition(&app.shader, "mvp"), 1, false, &app.cached_mvp[0][0])
     }
-    Cube_Draw(&app.cube)
+    //Cube_Draw(&app.cube)
+    Thing_Draw(&app.thing)
 }

@@ -8,7 +8,7 @@ SHADER_SIMPLE_FRAG :: #load("../assets/shaders/simple.frag")
 import gl "vendor:OpenGL"
 
 Cube :: struct {
-    position: [3] f32,
+    position: [3]f32,
     pos_vbo: u32,
     col_vbo: u32,
     ebo: u32,
@@ -20,7 +20,8 @@ Cube :: struct {
 }
 
 Cube_Create :: proc(dim: f32) -> Cube {
-    position := [3]f32 {0, 0, -2}
+    position := [3]f32 {0.0, 0.0, -2}
+
     vertices := [72]f32 {
         -dim, -dim, -dim, +dim, -dim, -dim, +dim, +dim, -dim, -dim, +dim, -dim,
         -dim, -dim, +dim, +dim, -dim, +dim, +dim, +dim, +dim, -dim, +dim, +dim,
