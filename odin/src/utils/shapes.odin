@@ -9,8 +9,8 @@ Circle_Create :: proc(x: f32, y: f32, radius: f32, quarter_segments: u32) -> [dy
     radius_2 := radius * radius
 
     for i in 0..<quarter_segments {
-        px := radius + dx * cast(f32) i
-        py := math.sqrt(radius_2 + px * px)
+        px := radius - dx * cast(f32) i
+        py := math.sqrt(radius_2 - px * px)
 
         idx := i * 8
         circle[idx+0] = -px + x

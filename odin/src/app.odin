@@ -29,7 +29,7 @@ App_Create :: proc(aspect: f32) -> App {
 
 
     cone := mesh.Cone_Create(0.5, 0.5)
-    thing := Thing_Create(cone.vertices, cone.triangles, {0.1, 0.9, 0.1})
+    thing := Thing_Create({0, 0, -2}, cone.vertices, cone.triangles, {0.1, 0.9, 0.1})
 
     return App {
         should_close = false,
@@ -76,6 +76,11 @@ App_OnKey :: proc(app: ^App, key: i32, scancode: i32, action: i32, mods: c.int) 
         app.rotator.roll = 0
         app.rotator.yaw = 0
     }
+
+    quat := Quat_Normalized(Rotator_Quat(app.rotator))
+    R := Quat_Matrix(quat)
+    //Cube_Rotate(&app.cube, R)
+    Thing_Rotate(&app.thing, R)
 }
 
 App_OnMouse :: proc(app: ^App, button: i32, action: i32, mods: i32) {
@@ -89,7 +94,7 @@ App_OnWindowSize :: proc(app: ^App, width, height: i32) {
 App_Update :: proc(app: ^App) {
     quat := Quat_Normalized(Rotator_Quat(app.rotator))
     R := Quat_Matrix(quat)
-    Cube_Rotate(&app.cube, R)
+    //Cube_Rotate(&app.cube, R)
 }
 
 App_Draw :: proc(app: ^App) {

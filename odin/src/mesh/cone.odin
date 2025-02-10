@@ -13,8 +13,8 @@ Cone :: struct {
 
 
 Cone_Create :: proc(radius: f32, height: f32) -> Cone {
-    quarter_segments : u32 : 100
-    circle := utils.Circle_Create(0, -10, radius, quarter_segments)
+    quarter_segments : u32 : 1
+    circle := utils.Circle_Create(0, 0, radius, quarter_segments)
     defer delete(circle)
 
 
@@ -74,6 +74,7 @@ Cone_Create :: proc(radius: f32, height: f32) -> Cone {
         triangles[tidx + 23] = i + 3 + 4        
     }
 
+    fmt.println(circle)
     fmt.println(vertices)
     fmt.println(triangles)
 
