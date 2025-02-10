@@ -28,7 +28,7 @@ App_Create :: proc(aspect: f32) -> App {
     cached_mvp := matrix[4,4] f32 {}
 
 
-    cone := mesh.Cone_Create(0.5, 0.5)
+    cone := mesh.Arrow_Create(0.5)
     thing := Thing_Create({0, 0, -2}, cone.vertices, cone.triangles, {0.1, 0.9, 0.1})
 
     return App {

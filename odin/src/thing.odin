@@ -25,12 +25,12 @@ Thing_Create :: proc(position: [3]f32, vertices: [dynamic]f32, triangles: [dynam
     }
 
     world_vertices := make([dynamic]f32, len(vertices))
-    for i in 0..<len(colours)/3 {
+    for i in 0..<len(vertices)/3 {
         world_vertices[i*3]   = vertices[i*3]+position[0]
         world_vertices[i*3+1] = vertices[i*3+1]+position[1]
         world_vertices[i*3+2] = vertices[i*3+2]+position[2]
     }
-
+    
     pos_vbo : u32
     gl.CreateBuffers(1, &pos_vbo)
     gl.BindBuffer(gl.ARRAY_BUFFER, pos_vbo)
@@ -82,6 +82,6 @@ Thing_Rotate :: proc(thing: ^Thing, R: matrix[4,4] f64 ) {
 
 Thing_Draw :: proc(thing: ^Thing) {
     gl.BindVertexArray(thing.vao)
-    gl.DrawElements(gl.TRIANGLES, size_of(thing.triangles) / size_of(u32), gl.UNSIGNED_INT, nil)
+    gl.DrawElements(gl.TRIANGLES, cast(i32) len(thing.triangles), gl.UNSIGNED_INT, nil)
     gl.BindVertexArray(0)
 }
