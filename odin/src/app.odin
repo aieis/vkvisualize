@@ -5,6 +5,8 @@ import "core:c"
 import glfw "vendor:glfw"
 import gl "vendor:OpenGL"
 
+import "./mesh"
+
 
 App :: struct  {
     should_close: bool,
@@ -13,17 +15,22 @@ App :: struct  {
     rotator: Rotator,
     shader: ShaderProgram,
     cube: Cube,
+    thing: Thing
 }
 
 App_Create :: proc() -> App {
     shader := ShaderProgram_Create(SHADER_SIMPLE_VERT, SHADER_SIMPLE_FRAG)
     cube := Cube_Create(0.5)
 
+    cone := mesh.Cone_Create(0.5, 0.5)
+    thing := Thing_Create(cone.vertices, cone.triangles, {0.1, 0.9, 0.1})
+
     return App {
         should_close = false,
         mouse_left_down = false,
         shader = shader,
-        cube = cube
+        cube = cube,
+        thing = thing
     }
 }
 
@@ -75,4 +82,5 @@ App_Update :: proc(app: ^App) {
 App_Draw :: proc(app: ^App) {
     gl.UseProgram(app.shader.id)
     Cube_Draw(&app.cube)
+    // Thing_Draw(&app.thing)
 }

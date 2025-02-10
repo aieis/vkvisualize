@@ -28,7 +28,7 @@ main :: proc() {
 
     gl.Enable(gl.DEPTH_TEST)
     
-    gl.ClearColor(0.5, 0.5, 0.5, 0.5);
+    gl.ClearColor(0, 0, 0, 1);
     
     for {
 

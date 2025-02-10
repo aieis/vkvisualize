@@ -9,6 +9,7 @@ SHADER_SIMPLE_FRAG :: #load("../assets/shaders/simple.frag")
 import gl "vendor:OpenGL"
 
 Cube :: struct {
+    position: [3]f32,
     pos_vbo: u32,
     col_vbo: u32,
     ebo: u32,
@@ -20,14 +21,17 @@ Cube :: struct {
 }
 
 Cube_Create :: proc(dim: f32) -> Cube {
-
+    position := [3]f32 {0.0, 0.0, 0}
+    ox := position[0]
+    oy := position[1]
+    oz := position[2]
     vertices := [72]f32 {
-        -dim, -dim, -dim, +dim, -dim, -dim, +dim, +dim, -dim, -dim, +dim, -dim,
-        -dim, -dim, +dim, +dim, -dim, +dim, +dim, +dim, +dim, -dim, +dim, +dim,
-        -dim, -dim, -dim, +dim, -dim, -dim, +dim, -dim, +dim, -dim, -dim, +dim,
-        -dim, +dim, -dim, +dim, +dim, -dim, +dim, +dim, +dim, -dim, +dim, +dim,
-        -dim, -dim, -dim, -dim, -dim, +dim, -dim, +dim, +dim, -dim, +dim, -dim,
-        +dim, -dim, -dim, +dim, -dim, +dim, +dim, +dim, +dim, +dim, +dim, -dim
+        -dim+ox, -dim+oy, -dim+oz, +dim+ox, -dim+oy, -dim+oz, +dim+ox, +dim+oy, -dim+oz, -dim+ox, +dim+oy, -dim+oz,
+        -dim+ox, -dim+oy, +dim+oz, +dim+ox, -dim+oy, +dim+oz, +dim+ox, +dim+oy, +dim+oz, -dim+ox, +dim+oy, +dim+oz,
+        -dim+ox, -dim+oy, -dim+oz, +dim+ox, -dim+oy, -dim+oz, +dim+ox, -dim+oy, +dim+oz, -dim+ox, -dim+oy, +dim+oz,
+        -dim+ox, +dim+oy, -dim+oz, +dim+ox, +dim+oy, -dim+oz, +dim+ox, +dim+oy, +dim+oz, -dim+ox, +dim+oy, +dim+oz,
+        -dim+ox, -dim+oy, -dim+oz, -dim+ox, -dim+oy, +dim+oz, -dim+ox, +dim+oy, +dim+oz, -dim+ox, +dim+oy, -dim+oz,
+        +dim+ox, -dim+oy, -dim+oz, +dim+ox, -dim+oy, +dim+oz, +dim+ox, +dim+oy, +dim+oz, +dim+ox, +dim+oy, -dim+oz
     }
 
     colours := [72] f32 {
@@ -79,6 +83,7 @@ Cube_Create :: proc(dim: f32) -> Cube {
     gl.BindVertexArray(0)
 
     return Cube {
+        position = position,
         pos_vbo = pos_vbo,
         col_vbo = col_vbo,
         ebo = ebo,
@@ -97,13 +102,17 @@ Cube_Draw :: proc(cube: ^Cube) {
 }
 
 Cube_Rotate :: proc(cube: ^Cube, R: matrix[4,4] f64 ) {
+    ox := cube.position[0]
+    oy := cube.position[1]
+    oz := cube.position[2]
+
     for i :=0 ; i < len(cube.vertices); i += 3 {
-        x := cube.vertices[i] * cast(f32) R[0][0] + cube.vertices[i+1] * cast(f32) R[0][1] + cube.vertices[i+2] * cast(f32) R[0][2]
-        y := cube.vertices[i] * cast(f32) R[1][0] + cube.vertices[i+1] * cast(f32) R[1][1] + cube.vertices[i+2] * cast(f32) R[1][2]
-        z := cube.vertices[i] * cast(f32) R[2][0] + cube.vertices[i+1] * cast(f32) R[2][1] + cube.vertices[i+2] * cast(f32) R[2][2]
-        cube.pos[i + 0] = x
-        cube.pos[i + 1] = y
-        cube.pos[i + 2] = z
+        x := (cube.vertices[i]-ox) * cast(f32) R[0][0] + (cube.vertices[i+1]-oy) * cast(f32) R[0][1] + (cube.vertices[i+2]-oz) * cast(f32) R[0][2]
+        y := (cube.vertices[i]-ox) * cast(f32) R[1][0] + (cube.vertices[i+1]-oy) * cast(f32) R[1][1] + (cube.vertices[i+2]-oz) * cast(f32) R[1][2]
+        z := (cube.vertices[i]-ox) * cast(f32) R[2][0] + (cube.vertices[i+1]-oy) * cast(f32) R[2][1] + (cube.vertices[i+2]-oz) * cast(f32) R[2][2]
+        cube.pos[i + 0] = x + ox
+        cube.pos[i + 1] = y + oy
+        cube.pos[i + 2] = z + oz
     }
 
     gl.BindBuffer(gl.ARRAY_BUFFER, cube.pos_vbo)
