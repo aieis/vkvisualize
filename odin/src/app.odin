@@ -18,7 +18,7 @@ App :: struct  {
     cube: Cube,
     camera: Camera,
     cached_mvp: matrix[4,4] f32,
-    thing: Thing
+    thing: [2]Thing
 }
 
 App_Create :: proc(aspect: f32) -> App {
@@ -29,8 +29,12 @@ App_Create :: proc(aspect: f32) -> App {
 
 
     cone := mesh.Arrow_Create(0.5)
-    thing := Thing_Create({0, 0, -2}, cone.vertices, cone.triangles, {0.1, 0.9, 0.1})
-
+    line := mesh.Mesh_FromLines([]f32{-0.8, 0, -0.2, +0.5, 0, -0.2, -0.5, 0, -0.2, -0.5, 0.5, -0.2}, 0.2)
+    thing := [2]Thing {
+        Thing_Create({0, 0, -2}, line.vertices, line.triangles, {0.1, 0.9, 0.1}),
+        Thing_Create({-0.5, 0, -2}, cone.vertices, cone.triangles, {0.9, 0.1, 0.1}),
+    }
+    
     return App {
         should_close = false,
         mouse_left_down = false,
@@ -80,7 +84,7 @@ App_OnKey :: proc(app: ^App, key: i32, scancode: i32, action: i32, mods: c.int) 
     quat := Quat_Normalized(Rotator_Quat(app.rotator))
     R := Quat_Matrix(quat)
     //Cube_Rotate(&app.cube, R)
-    Thing_Rotate(&app.thing, R)
+    //Thing_Rotate(&app.thing, R)
 }
 
 App_OnMouse :: proc(app: ^App, button: i32, action: i32, mods: i32) {
@@ -104,5 +108,7 @@ App_Draw :: proc(app: ^App) {
         gl.UniformMatrix4fv(ShaderProgram_UniformPosition(&app.shader, "mvp"), 1, false, &app.cached_mvp[0][0])
     }
     //Cube_Draw(&app.cube)
-    Thing_Draw(&app.thing)
+    
+    Thing_Draw(&app.thing[0])
+    Thing_Draw(&app.thing[1])
 }
