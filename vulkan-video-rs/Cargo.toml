@@ -1,0 +1,11 @@
+[package]
+name = "vulkan-video-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ash = { version = "0.38.0", features = ["linked", "debug", "std"] }
+ash-window = "0.13.0"
+image = { version = "0.25", default-features = false, features = ["png"] }
+simple_logger = "5.0.0"
+winit = { version = "0.29", features = ["rwh_06"] }
