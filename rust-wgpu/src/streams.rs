@@ -17,7 +17,7 @@ impl Depth {
 
         let label_l = format!("{}-proj", label);
         let proj = Texture::from_bytes(
-            &device, &queue, wgpu::TextureFormat::, &label_l,
+            &device, &queue, wgpu::TextureFormat::Depth16Unorm, &label_l,
             pcl.get_buffer(), pcl.width as u32, pcl.height as u32, pcl.width as u32 * 2
         );
 
