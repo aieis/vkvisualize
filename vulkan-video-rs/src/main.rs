@@ -28,7 +28,8 @@ struct App {
     surface: SurfaceBundle,
     device: DeviceBundle,
     swapchain: SwapchainBundle,
-    
+    image_views: Vec<vk::ImageView>,
+
     window: Window,
     close: bool,
 }
@@ -42,7 +43,6 @@ impl App {
         let device = App::select_phsyical_device(&instance, &surface);
         let swapchain = App::create_swapchain(&instance, &device, &surface);
 
-
         Self {
             entry,
             instance,
@@ -52,7 +52,7 @@ impl App {
             surface,
             device,
             swapchain,
-            
+
             window,
             close: false,
         }
@@ -164,7 +164,7 @@ impl App {
 
         SurfaceBundle {
             surface,
-            loader: surface_loader 
+            loader: surface_loader
         }
     }
 
@@ -204,7 +204,7 @@ impl App {
             .enabled_extension_names(&device_extension_names_raw);
 
         let device: ash::Device = unsafe { instance.create_device(queues[0].1, &device_create_info, None).unwrap() };
-        
+
         DeviceBundle {
             logical: device,
             physical: queues[0].1,
@@ -218,7 +218,7 @@ impl App {
         device: &DeviceBundle,
         surface: &SurfaceBundle
     ) -> SwapchainBundle {
-        
+
         let surface_format = unsafe { surface.loader.get_physical_device_surface_formats(device.physical, surface.surface).unwrap()[0] };
 
         let surface_capabilities = unsafe { surface.loader.get_physical_device_surface_capabilities(device.physical, surface.surface).unwrap() };
@@ -269,13 +269,42 @@ impl App {
 
         let swapchain = unsafe { swapchain_loader.create_swapchain(&swapchain_create_info, None).unwrap() };
         let present_images = unsafe { swapchain_loader.get_swapchain_images(swapchain).unwrap() };
-        
+
         SwapchainBundle {
             swapchain,
             loader: swapchain_loader,
             images: present_images,
             format: surface_format.format,
             extent: surface_resolution
+        }
+    }
+
+    fn create_image_views(device: &DeviceBundle, swapchain: &SwapchainBundle) {
+        let mut present_image_views: Vec<vk::ImageView> = Vec::new();
+        let rgba_component = vk::ComponentMapping {
+            r: vk::ComponentSwizzle::R,
+            g: vk::ComponentSwizzle::G,
+            b: vk::ComponentSwizzle::B,
+            a: vk::ComponentSwizzle::A,
+        };
+
+        let subresource_range = vk::ImageSubresourceRange {
+            aspect_mask: vk::ImageAspectFlags::COLOR,
+            base_mip_level: 0,
+            level_count: 1,
+            base_array_layer: 0,
+            layer_count: 1,
+        };
+
+        for image in swapchain.images.iter() {
+            let create_view_info = vk::ImageViewCreateInfo::default()
+                .view_type(vk::ImageViewType::TYPE_2D)
+                .format(swapchain.format)
+                .components(rgba_component)
+                .subresource_range(subresource_range)
+                .image(*image);
+            let view = unsafe { device.logical.create_image_view(&create_view_info, None).unwrap() };
+            present_image_views.push(view);
         }
     }
 
@@ -308,9 +337,10 @@ impl App {
 impl Drop for App {
     fn drop(&mut self) {
         unsafe {
-            self.debug_utils_loader.destroy_debug_utils_messenger(self.debug_messenger, None);
+            self.swapchain.loader.destroy_swapchain(self.swapchain.swapchain, None);
             self.device.logical.destroy_device(None);
             self.surface.loader.destroy_surface(self.surface.surface, None);
+            self.debug_utils_loader.destroy_debug_utils_messenger(self.debug_messenger, None);
             self.instance.destroy_instance(None);
         }
     }
