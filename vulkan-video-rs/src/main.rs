@@ -4,6 +4,8 @@ use std::ffi::{c_char, c_void, CStr, CString};
 
 use ash::{ext::debug_utils, khr};
 
+use vk_bundles::*;
+
 use ash::vk;
 use simple_logger::SimpleLogger;
 use winit::{
@@ -22,10 +24,11 @@ struct App {
     instance: ash::Instance,
     debug_utils_loader: debug_utils::Instance,
     debug_messenger: vk::DebugUtilsMessengerEXT,
-    surface: vk::SurfaceKHR,
-    surface_loader: khr::surface::Instance,
-    device: ash::Device,
-    graphics_queue: vk::Queue,
+
+    surface: SurfaceBundle,
+    device: DeviceBundle,
+    swapchain: SwapchainBundle,
+    
     window: Window,
     close: bool,
 }
@@ -34,9 +37,10 @@ impl App {
     fn new(window: Window) -> Self {
         let (entry, instance) = App::create_instance(&window);
         let (debug_utils_loader, debug_messenger) = App::setup_validation(&entry, &instance);
-        let (surface, surface_loader) = App::create_surface(&entry, &instance, &window);
-        let (device, graphics_queue) = App::select_phsyical_device(&instance, surface, &surface_loader);
-        let (swapchain_loader, swapchain, present_images, surface_format.format, surface_resolution) = App::create_swapchain()
+
+        let surface = App::create_surface(&entry, &instance, &window);
+        let device = App::select_phsyical_device(&instance, &surface);
+        let swapchain = App::create_swapchain(&instance, &device, &surface);
 
 
         Self {
@@ -44,10 +48,11 @@ impl App {
             instance,
             debug_utils_loader,
             debug_messenger,
+
             surface,
-            surface_loader,
             device,
-            graphics_queue,
+            swapchain,
+            
             window,
             close: false,
         }
@@ -151,16 +156,20 @@ impl App {
         (entry, instance)
     }
 
-    fn create_surface(entry: &ash::Entry, instance: &ash::Instance, window: &Window) -> (vk::SurfaceKHR, khr::surface::Instance){
+    fn create_surface(entry: &ash::Entry, instance: &ash::Instance, window: &Window) -> SurfaceBundle {
         let display_handle = window.display_handle().unwrap();
         let window_handle = window.window_handle().unwrap();
         let surface = unsafe { ash_window::create_surface(entry, instance, display_handle.as_raw(), window_handle.as_raw(), None).unwrap() };
         let surface_loader = khr::surface::Instance::new(entry, instance);
-        (surface, surface_loader)
+
+        SurfaceBundle {
+            surface,
+            loader: surface_loader 
+        }
     }
 
     /* Select device */
-    fn select_phsyical_device(instance: &ash::Instance, surface: vk::SurfaceKHR, surface_loader: &khr::surface::Instance) -> (ash::Device, vk::Queue) {
+    fn select_phsyical_device(instance: &ash::Instance, surface: &SurfaceBundle) -> DeviceBundle{
         let devs = unsafe { instance.enumerate_physical_devices().unwrap() };
 
         let mut queues = Vec::new();
@@ -171,7 +180,7 @@ impl App {
             let queue_props = unsafe { instance.get_physical_device_queue_family_properties(*dev) };
 
             for (i, queue) in queue_props.iter().enumerate() {
-                let surface_support = unsafe { surface_loader.get_physical_device_surface_support(*dev, i as u32, surface).unwrap() };
+                let surface_support = unsafe { surface.loader.get_physical_device_surface_support(*dev, i as u32, surface.surface).unwrap() };
                 if surface_support && queue.queue_flags.contains(vk::QueueFlags::GRAPHICS) {
                     queues.push((i as u32, *dev));
                 }
@@ -195,24 +204,24 @@ impl App {
             .enabled_extension_names(&device_extension_names_raw);
 
         let device: ash::Device = unsafe { instance.create_device(queues[0].1, &device_create_info, None).unwrap() };
-        let graphics_queue = unsafe { device.get_device_queue(queues[0].0, 0) };
-
-        (device, graphics_queue)
+        
+        DeviceBundle {
+            logical: device,
+            physical: queues[0].1,
+            queue_family_index: queues[0].0 as u32
+        }
     }
 
     /* Setup the swapchain */
     fn create_swapchain(
         instance: &ash::Instance,
-        device: &ash::Device,
-        physical_device: vk::PhysicalDevice,
-        surface: vk::SurfaceKHR,
-        surface_loader: &khr::surface::Instance,
-        queue_family_index: u32,
-    ) -> (khr::swapchain::Device, vk::SwapchainKHR, Vec<vk::Image>, vk::Format, vk::Extent2D) {
+        device: &DeviceBundle,
+        surface: &SurfaceBundle
+    ) -> SwapchainBundle {
         
-        let surface_format = unsafe { surface_loader.get_physical_device_surface_formats(physical_device, surface).unwrap()[0] };
+        let surface_format = unsafe { surface.loader.get_physical_device_surface_formats(device.physical, surface.surface).unwrap()[0] };
 
-        let surface_capabilities = unsafe { surface_loader.get_physical_device_surface_capabilities(physical_device, surface).unwrap() };
+        let surface_capabilities = unsafe { surface.loader.get_physical_device_surface_capabilities(device.physical, surface.surface).unwrap() };
         let mut desired_image_count = surface_capabilities.min_image_count + 1;
         if surface_capabilities.max_image_count > 0 && desired_image_count > surface_capabilities.max_image_count
         {
@@ -234,7 +243,7 @@ impl App {
             surface_capabilities.current_transform
         };
 
-        let present_modes = unsafe { surface_loader.get_physical_device_surface_present_modes(physical_device, surface).unwrap() };
+        let present_modes = unsafe { surface.loader.get_physical_device_surface_present_modes(device.physical, surface.surface).unwrap() };
 
         let present_mode = present_modes
             .iter()
@@ -242,10 +251,10 @@ impl App {
             .find(|&mode| mode == vk::PresentModeKHR::MAILBOX)
             .unwrap_or(vk::PresentModeKHR::FIFO);
 
-        let swapchain_loader = khr::swapchain::Device::new(&instance, &device);
+        let swapchain_loader = khr::swapchain::Device::new(&instance, &device.logical);
 
         let swapchain_create_info = vk::SwapchainCreateInfoKHR::default()
-            .surface(surface)
+            .surface(surface.surface)
             .min_image_count(desired_image_count)
             .image_color_space(surface_format.color_space)
             .image_format(surface_format.format)
@@ -261,7 +270,13 @@ impl App {
         let swapchain = unsafe { swapchain_loader.create_swapchain(&swapchain_create_info, None).unwrap() };
         let present_images = unsafe { swapchain_loader.get_swapchain_images(swapchain).unwrap() };
         
-        (swapchain_loader, swapchain, present_images, surface_format.format, surface_resolution)
+        SwapchainBundle {
+            swapchain,
+            loader: swapchain_loader,
+            images: present_images,
+            format: surface_format.format,
+            extent: surface_resolution
+        }
     }
 
     /* Setup validation layer callbacks */
@@ -294,8 +309,8 @@ impl Drop for App {
     fn drop(&mut self) {
         unsafe {
             self.debug_utils_loader.destroy_debug_utils_messenger(self.debug_messenger, None);
-            self.device.destroy_device(None);
-            self.surface_loader.destroy_surface(self.surface, None);
+            self.device.logical.destroy_device(None);
+            self.surface.loader.destroy_surface(self.surface.surface, None);
             self.instance.destroy_instance(None);
         }
     }
