@@ -42,6 +42,7 @@ impl App {
         let surface = App::create_surface(&entry, &instance, &window);
         let device = App::select_phsyical_device(&instance, &surface);
         let swapchain = App::create_swapchain(&instance, &device, &surface);
+        let image_views = App::create_image_views(&device, &swapchain);
 
         Self {
             entry,
@@ -52,6 +53,7 @@ impl App {
             surface,
             device,
             swapchain,
+            image_views,
 
             window,
             close: false,
@@ -279,7 +281,7 @@ impl App {
         }
     }
 
-    fn create_image_views(device: &DeviceBundle, swapchain: &SwapchainBundle) {
+    fn create_image_views(device: &DeviceBundle, swapchain: &SwapchainBundle) -> Vec<vk::ImageView>{
         let mut present_image_views: Vec<vk::ImageView> = Vec::new();
         let rgba_component = vk::ComponentMapping {
             r: vk::ComponentSwizzle::R,
@@ -306,6 +308,13 @@ impl App {
             let view = unsafe { device.logical.create_image_view(&create_view_info, None).unwrap() };
             present_image_views.push(view);
         }
+
+        present_image_views
+    }
+
+    /* Setup the graphics pipeline */
+    fn create_graphics_pipeline() {
+        
     }
 
     /* Setup validation layer callbacks */
@@ -326,9 +335,7 @@ impl App {
 
         let debug_utils_loader = debug_utils::Instance::new(entry, instance);
         let utils_messenger = unsafe {
-            debug_utils_loader
-                .create_debug_utils_messenger(&messenger_ci, None)
-                 .expect("Debug Utils Callback")
+            debug_utils_loader.create_debug_utils_messenger(&messenger_ci, None).expect("Debug Utils Callback")
         };
         (debug_utils_loader, utils_messenger)
     }}
@@ -337,6 +344,10 @@ impl App {
 impl Drop for App {
     fn drop(&mut self) {
         unsafe {
+            for &image in self.image_views.iter() {
+                self.device.logical.destroy_image_view(image, None);
+            }
+
             self.swapchain.loader.destroy_swapchain(self.swapchain.swapchain, None);
             self.device.logical.destroy_device(None);
             self.surface.loader.destroy_surface(self.surface.surface, None);
