@@ -34,7 +34,7 @@ App_Create :: proc(aspect: f32) -> App {
         Thing_Create({0, 0, -2}, line.vertices, line.triangles, {0.1, 0.9, 0.1}),
         Thing_Create({-0.5, 0, -2}, cone.vertices, cone.triangles, {0.9, 0.1, 0.1}),
     }
-    
+
     return App {
         should_close = false,
         mouse_left_down = false,
