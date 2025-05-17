@@ -1,8 +1,8 @@
 THIRD_PARTY = C:/lib/vcpkg/installed/x64-windows
 
 INC = -I$(THIRD_PARTY)/include -Iinclude -Ithird_party/include
-LIB = -L$(THIRD_PARTY)/lib -lglfw3dll -lopengl32 -luser32 -lgdi32 -lkernel32 -lshell32 -lrealsense2
-#LIB = -lglfw -lGL -lm
+#LIB = -L$(THIRD_PARTY)/lib -lglfw3dll -lopengl32 -luser32 -lgdi32 -lkernel32 -lshell32 -lrealsense2
+LIB = -lglfw -lGL -lm
 CC = gcc
 LD = gcc
 
