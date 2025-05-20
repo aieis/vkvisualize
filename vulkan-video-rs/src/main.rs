@@ -499,6 +499,8 @@ impl App {
 impl Drop for App {
     fn drop(&mut self) {
         unsafe {
+	    self.device.logical.destroy_pipeline_layout(self.graphics_pipeline.layout, None);
+	    self.device.logical.destroy_render_pass(self.render_pass, None);
             for &image in self.image_views.iter() {
                 self.device.logical.destroy_image_view(image, None);
             }
