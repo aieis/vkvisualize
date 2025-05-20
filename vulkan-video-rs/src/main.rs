@@ -1,4 +1,5 @@
 mod vk_bundles;
+mod shader;
 
 use std::ffi::{c_char, c_void, CStr, CString};
 
@@ -29,6 +30,8 @@ struct App {
     device: DeviceBundle,
     swapchain: SwapchainBundle,
     image_views: Vec<vk::ImageView>,
+    render_pass: vk::RenderPass,
+    graphics_pipeline: GraphicsPipelineBundle,
 
     window: Window,
     close: bool,
@@ -43,6 +46,8 @@ impl App {
         let device = App::select_phsyical_device(&instance, &surface);
         let swapchain = App::create_swapchain(&instance, &device, &surface);
         let image_views = App::create_image_views(&device, &swapchain);
+	let render_pass = App::create_render_pass(&device, &swapchain);
+	let graphics_pipeline = App::create_graphics_pipeline(&device, &swapchain, &render_pass);
 
         Self {
             entry,
@@ -54,6 +59,8 @@ impl App {
             device,
             swapchain,
             image_views,
+	    render_pass,
+	    graphics_pipeline,
 
             window,
             close: false,
@@ -313,8 +320,156 @@ impl App {
     }
 
     /* Setup the graphics pipeline */
-    fn create_graphics_pipeline() {
-        
+    fn create_graphics_pipeline(device: &DeviceBundle, swapchain: &SwapchainBundle, renderpass: &vk::RenderPass) -> GraphicsPipelineBundle {
+	let shader = shader::Shader::new(&device.logical, "assets/shaders/triangle.vert.spv", "assets/shaders/triangle.frag.spv");
+        let main_function_name = CString::new("main").unwrap(); // the beginning function name in shader code.
+	let vertex_shader_stage = vk::PipelineShaderStageCreateInfo::default()
+	    .name(&main_function_name)
+	    .stage(vk::ShaderStageFlags::VERTEX)
+	    .module(shader.vertex);
+
+	let fragment_shader_stage = vk::PipelineShaderStageCreateInfo::default()
+	    .name(&main_function_name)
+	    .stage(vk::ShaderStageFlags::FRAGMENT)
+	    .module(shader.fragment);
+
+	let shader_stage_create_infos = [vertex_shader_stage, fragment_shader_stage];
+
+	let vertex_input_state_info = vk::PipelineVertexInputStateCreateInfo::default();
+	let vertex_input_assembly_state_info = vk::PipelineInputAssemblyStateCreateInfo::default()
+	    .topology(vk::PrimitiveTopology::TRIANGLE_LIST)
+	    .primitive_restart_enable(false);
+
+	let viewports = [vk::Viewport {
+	    x: 0.0,
+	    y: 0.0,
+	    width: swapchain.extent.width as f32,
+	    height: swapchain.extent.height as f32,
+	    min_depth: 0.0,
+	    max_depth: 1.0
+	}];
+
+	let scissors = [vk::Rect2D {
+	    offset: vk::Offset2D {x: 0, y: 0},
+	    extent: swapchain.extent
+	}];
+
+	let dynamic_states = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
+	let dynamic_state_info = vk::PipelineDynamicStateCreateInfo::default()
+	    .dynamic_states(&dynamic_states);
+
+	let viewport_state_info = vk::PipelineViewportStateCreateInfo::default()
+	    .viewports(&viewports)
+	    .scissors(&scissors);
+
+	let rasterization_info = vk::PipelineRasterizationStateCreateInfo::default()
+	    .cull_mode(vk::CullModeFlags::FRONT)
+	    .front_face(vk::FrontFace::CLOCKWISE)
+	    .polygon_mode(vk::PolygonMode::FILL)
+	    .depth_clamp_enable(false)
+	    .rasterizer_discard_enable(false)
+	    .line_width(1.0);
+
+	let multisample_state_info = vk::PipelineMultisampleStateCreateInfo::default()
+	    .rasterization_samples(vk::SampleCountFlags::TYPE_1);
+
+        let stencil_state = vk::StencilOpState {
+            fail_op: vk::StencilOp::KEEP,
+            pass_op: vk::StencilOp::KEEP,
+            depth_fail_op: vk::StencilOp::KEEP,
+            compare_op: vk::CompareOp::ALWAYS,
+            compare_mask: 0,
+            write_mask: 0,
+            reference: 0,
+        };
+
+        let depth_state_create_info = vk::PipelineDepthStencilStateCreateInfo::default()
+            .depth_compare_op(vk::CompareOp::LESS_OR_EQUAL)
+            .depth_bounds_test_enable(false)
+            .stencil_test_enable(false)
+            .front(stencil_state)
+            .back(stencil_state)
+            .max_depth_bounds(1.0)
+            .min_depth_bounds(0.0);
+
+
+        let color_blend_attachment_states = [vk::PipelineColorBlendAttachmentState {
+            blend_enable: 0,
+            src_color_blend_factor: vk::BlendFactor::SRC_COLOR,
+            dst_color_blend_factor: vk::BlendFactor::ONE_MINUS_DST_COLOR,
+            color_blend_op: vk::BlendOp::ADD,
+            src_alpha_blend_factor: vk::BlendFactor::ZERO,
+            dst_alpha_blend_factor: vk::BlendFactor::ZERO,
+            alpha_blend_op: vk::BlendOp::ADD,
+            color_write_mask: vk::ColorComponentFlags::RGBA,
+        }];
+
+	let color_blend_state = vk::PipelineColorBlendStateCreateInfo::default()
+            .logic_op(vk::LogicOp::CLEAR)
+            .attachments(&color_blend_attachment_states);
+
+	let layout_create_info = vk::PipelineLayoutCreateInfo::default();
+        let pipeline_layout = unsafe { device.logical.create_pipeline_layout(&layout_create_info, None).unwrap() };
+
+        let graphic_pipeline_infos = [vk::GraphicsPipelineCreateInfo::default()
+            .stages(&shader_stage_create_infos)
+            .vertex_input_state(&vertex_input_state_info)
+            .input_assembly_state(&vertex_input_assembly_state_info)
+            .viewport_state(&viewport_state_info)
+            .rasterization_state(&rasterization_info)
+            .multisample_state(&multisample_state_info)
+            .depth_stencil_state(&depth_state_create_info)
+            .color_blend_state(&color_blend_state)
+            .dynamic_state(&dynamic_state_info)
+            .layout(pipeline_layout)
+            .render_pass(*renderpass)];
+
+        let graphics_pipelines = unsafe {
+            device.logical.create_graphics_pipelines(vk::PipelineCache::null(), &graphic_pipeline_infos, None)
+                .expect("Failed to create Graphics Pipeline!.")
+        };
+
+        unsafe {
+            device.logical.destroy_shader_module(shader.vertex, None);
+            device.logical.destroy_shader_module(shader.fragment, None);
+        }
+
+
+	GraphicsPipelineBundle {
+	    graphics: graphics_pipelines[0],
+	    layout: pipeline_layout
+	}
+    }
+
+    fn create_render_pass(device: &DeviceBundle, swapchain: &SwapchainBundle) -> vk::RenderPass{
+        let color_attachment = vk::AttachmentDescription::default()
+            .format(swapchain.format)
+            .samples(vk::SampleCountFlags::TYPE_1)
+            .load_op(vk::AttachmentLoadOp::CLEAR)
+            .store_op(vk::AttachmentStoreOp::STORE)
+            .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
+            .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
+            .initial_layout(vk::ImageLayout::UNDEFINED)
+            .final_layout(vk::ImageLayout::PRESENT_SRC_KHR);
+
+        let color_attachment_ref = [vk::AttachmentReference::default()
+            .attachment(0)
+            .layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)];
+
+        let subpass = [vk::SubpassDescription::default()
+	    .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)
+	    .color_attachments(&color_attachment_ref)];
+
+        let render_pass_attachments = [color_attachment];
+
+        let renderpass_create_info = vk::RenderPassCreateInfo::default()
+	    .attachments(&render_pass_attachments)
+	    .subpasses(&subpass);
+
+        unsafe {
+            device.logical.create_render_pass(&renderpass_create_info, None)
+                .expect("Failed to create render pass!")
+        }
     }
 
     /* Setup validation layer callbacks */

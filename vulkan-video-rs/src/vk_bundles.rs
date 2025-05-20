@@ -25,3 +25,8 @@ pub struct SwapchainBundle {
     pub format: vk::Format,
     pub extent: vk::Extent2D,
 }
+
+pub struct GraphicsPipelineBundle {
+    pub graphics: vk::Pipeline,
+    pub layout: vk::PipelineLayout
+}
