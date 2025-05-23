@@ -30,3 +30,9 @@ pub struct GraphicsPipelineBundle {
     pub graphics: vk::Pipeline,
     pub layout: vk::PipelineLayout
 }
+
+pub struct SyncObjectsBundle {
+    pub image_available_semaphores: Vec<vk::Semaphore>,
+    pub render_finished_semaphores: Vec<vk::Semaphore>,
+    pub inflight_fences: Vec<vk::Fence>,
+}
