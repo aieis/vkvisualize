@@ -10,12 +10,7 @@ pub struct DeviceBundle {
     pub logical: ash::Device,
     pub physical: vk::PhysicalDevice,
     pub queue_family_index: u32,
-}
-
-impl DeviceBundle {
-    pub fn queue(&self, queue_index: u32) -> vk::Queue {
-        unsafe { self.logical.get_device_queue(self.queue_family_index, queue_index) }
-    }    
+    pub present_queue: vk::Queue
 }
 
 pub struct SwapchainBundle {

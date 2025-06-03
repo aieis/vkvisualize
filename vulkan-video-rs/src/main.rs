@@ -114,7 +114,7 @@ impl App {
 
         unsafe {
             self.device.logical.reset_fences(&wait_fences).expect("Failed to reset Fence!");
-	    self.device.logical.queue_submit(self.device.queue(0), &submit_infos, self.sync_objects.inflight_fences[self.current_frame],)
+	    self.device.logical.queue_submit(self.device.present_queue, &submit_infos, self.sync_objects.inflight_fences[self.current_frame],)
                 .expect("Failed to execute queue submit.");
         }
 
@@ -128,8 +128,7 @@ impl App {
             .image_indices(&image_indices);
 
         unsafe {
-            self.swapchain.loader.queue_present(self.device.queue(0), &present_info)
-                .expect("Failed to execute queue present.");
+            self.swapchain.loader.queue_present(self.device.present_queue, &present_info).expect("Failed to execute queue present.");
         }
 
         self.current_frame = (self.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -279,11 +278,13 @@ impl App {
             .enabled_extension_names(&device_extension_names_raw);
 
         let device: ash::Device = unsafe { instance.create_device(queues[0].1, &device_create_info, None).unwrap() };
+        let present_queue = unsafe { device.get_device_queue(queues[0].0 as  u32, 0) };
 
         DeviceBundle {
             logical: device,
             physical: queues[0].1,
-            queue_family_index: queues[0].0 as u32
+            queue_family_index: queues[0].0 as u32,
+            present_queue,
         }
     }
 
@@ -416,16 +417,16 @@ impl App {
 	    extent: swapchain.extent
 	}];
 
-	let dynamic_states = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
-	let dynamic_state_info = vk::PipelineDynamicStateCreateInfo::default()
-	    .dynamic_states(&dynamic_states);
+	// let dynamic_states = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
+	let dynamic_state_info = vk::PipelineDynamicStateCreateInfo::default();
+	//.dynamic_states(&dynamic_states);
 
 	let viewport_state_info = vk::PipelineViewportStateCreateInfo::default()
 	    .viewports(&viewports)
 	    .scissors(&scissors);
 
 	let rasterization_info = vk::PipelineRasterizationStateCreateInfo::default()
-	    .cull_mode(vk::CullModeFlags::FRONT)
+	    .cull_mode(vk::CullModeFlags::BACK)
 	    .front_face(vk::FrontFace::CLOCKWISE)
 	    .polygon_mode(vk::PolygonMode::FILL)
 	    .depth_clamp_enable(false)
@@ -600,13 +601,29 @@ impl App {
                 .render_area(vk::Rect2D { offset: vk::Offset2D { x: 0, y: 0 }, extent: swapchain.extent})
                 .clear_values(&clear_values);
 
+	    // let viewports = [vk::Viewport {
+	    //     x: 0.0,
+	    //     y: 0.0,
+	    //     width: swapchain.extent.width as f32,
+	    //     height: swapchain.extent.height as f32,
+	    //     min_depth: 0.0,
+	    //     max_depth: 1.0
+	    // }];
+
+	    // let scissors = [vk::Rect2D {
+	    //     offset: vk::Offset2D {x: 0, y: 0},
+	    //     extent: swapchain.extent
+	    // }];
+
+
             unsafe {
                 device.logical.cmd_begin_render_pass(command_buffer, &render_pass_begin_info, vk::SubpassContents::INLINE);
                 device.logical.cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, graphics_pipeline.graphics);
+                // device.logical.cmd_set_viewport(command_buffer, 0, &viewports);
+                // device.logical.cmd_set_scissor(command_buffer, 0, &scissors);
                 device.logical.cmd_draw(command_buffer, 3, 1, 0, 0);
 		device.logical.cmd_end_render_pass(command_buffer);
-		device.logical.end_command_buffer(command_buffer)
-                    .expect("Failed to record Command Buffer at Ending!");
+		device.logical.end_command_buffer(command_buffer).expect("Failed to record Command Buffer at Ending!");
             }
         }
 
@@ -665,12 +682,15 @@ impl App {
         };
         (debug_utils_loader, utils_messenger)
     }
+
 }
 
 
 impl Drop for App {
     fn drop(&mut self) {
         unsafe {
+            let _ = self.device.logical.device_wait_idle();
+
             for i in 0..MAX_FRAMES_IN_FLIGHT {
                 self.device.logical.destroy_semaphore(self.sync_objects.image_available_semaphores[i], None);
                 self.device.logical.destroy_semaphore(self.sync_objects.render_finished_semaphores[i], None);
@@ -682,6 +702,8 @@ impl Drop for App {
 	    for framebuffer in self.framebuffers.iter() {
 		self.device.logical.destroy_framebuffer(*framebuffer, None);
 	    }
+
+            self.device.logical.destroy_pipeline(self.graphics_pipeline.graphics, None);
 
 	    self.device.logical.destroy_pipeline_layout(self.graphics_pipeline.layout, None);
 	    self.device.logical.destroy_render_pass(self.render_pass, None);
