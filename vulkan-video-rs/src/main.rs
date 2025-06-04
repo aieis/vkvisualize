@@ -38,6 +38,7 @@ struct App {
     command_buffers: Vec<vk::CommandBuffer>,
     sync_objects: SyncObjectsBundle,
     current_frame: usize,
+    is_framebuffer_resized: bool,
 
     window: Window,
     close: bool,
@@ -78,6 +79,7 @@ impl App {
 	    command_buffers,
 	    sync_objects,
 	    current_frame: 0,
+            is_framebuffer_resized: false,
 
             window,
             close: false,
@@ -91,13 +93,21 @@ impl App {
             self.device.logical.wait_for_fences(&wait_fences, true, std::u64::MAX)
                 .expect("Failed to wait for Fence!");
 
-            self.swapchain.loader.acquire_next_image(
-                    self.swapchain.swapchain,
-                    std::u64::MAX,
-                    self.sync_objects.image_available_semaphores[self.current_frame],
-                    vk::Fence::null(),
-                )
-                .expect("Failed to acquire next image.")
+            let result = self.swapchain.loader.acquire_next_image(
+                self.swapchain.swapchain, std::u64::MAX,
+                self.sync_objects.image_available_semaphores[self.current_frame],
+                vk::Fence::null());
+
+            match result {
+                Ok(image_index) => image_index,
+                Err(vk_result) => match vk_result {
+                    vk::Result::ERROR_OUT_OF_DATE_KHR => {
+                        self.recreate_swapchain();
+                        return;
+                    }
+                    _ => panic!("Failed to acquire swapchain image!"),
+                },
+            }
         };
 
         let wait_semaphores = [self.sync_objects.image_available_semaphores[self.current_frame]];
@@ -127,9 +137,20 @@ impl App {
 	    .swapchains(&swapchains)
             .image_indices(&image_indices);
 
-        unsafe {
-            self.swapchain.loader.queue_present(self.device.present_queue, &present_info).expect("Failed to execute queue present.");
+        let result =  unsafe { self.swapchain.loader.queue_present(self.device.present_queue, &present_info) };
+
+        let is_resized = match result {
+            Ok(_) => self.is_framebuffer_resized,
+            Err(vk_result) => match vk_result {
+                vk::Result::ERROR_OUT_OF_DATE_KHR | vk::Result::SUBOPTIMAL_KHR => true,
+                _ => panic!("Failed to execute queue present."),
+            },
+        };
+        if is_resized {
+            self.is_framebuffer_resized = false;
+            self.recreate_swapchain();
         }
+
 
         self.current_frame = (self.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
     }
@@ -143,6 +164,9 @@ impl App {
                 self.window.pre_present_notify();
                 self.render();
             }
+            WindowEvent::Resized(_) => {
+                self.window.request_redraw();
+            }            
             WindowEvent::KeyboardInput {
                 device_id: _,
                 event,
@@ -165,6 +189,36 @@ impl App {
             _ => {}
         }
     }
+
+    fn recreate_swapchain(&mut self) {
+        // parameters -------------
+        unsafe { self.device.logical.device_wait_idle().expect("Failed to wait device idle!") };
+        self.cleanup_swapchain();
+
+        self.swapchain = App::create_swapchain(&self.instance, &self.device, &self.surface);
+        self.image_views = App::create_image_views(&self.device, &self.swapchain);
+	self.render_pass = App::create_render_pass(&self.device, &self.swapchain);
+	self.graphics_pipeline = App::create_graphics_pipeline(&self.device, &self.swapchain, &self.render_pass);
+	self.framebuffers = App::create_framebuffers(&self.device, &self.render_pass, &self.image_views, &self.swapchain);
+        self.command_buffers = App::create_command_buffers(&self.device, self.command_pool, &self.graphics_pipeline, &self.framebuffers, self.render_pass, &self.swapchain);
+    }
+
+    fn cleanup_swapchain(&self) {
+        unsafe {
+            self.device.logical.free_command_buffers(self.command_pool, &self.command_buffers);
+            for &framebuffer in self.framebuffers.iter() {
+                self.device.logical.destroy_framebuffer(framebuffer, None);
+            }
+            self.device.logical.destroy_pipeline(self.graphics_pipeline.graphics, None);
+            self.device.logical.destroy_pipeline_layout(self.graphics_pipeline.layout, None);
+            self.device.logical.destroy_render_pass(self.render_pass, None);
+            for &image_view in self.image_views.iter() {
+                self.device.logical.destroy_image_view(image_view, None);
+            }
+            self.swapchain.loader.destroy_swapchain(self.swapchain.swapchain, None);
+        }
+    }
+
 
     /* Misc vulkan */
 
@@ -199,32 +253,20 @@ impl App {
         extensions.push(debug_utils::NAME.as_ptr());
 
         // Create the instance
-        let app_name = CString::new("Vulkan Video").unwrap();
-        let engine_name = CString::new("Vulkan Engine").unwrap();
-
-        let app_info = vk::ApplicationInfo {
-            s_type: vk::StructureType::APPLICATION_INFO,
-            p_next: std::ptr::null(),
-            p_application_name: app_name.as_ptr(),
-            application_version: vk::make_api_version(0, 0, 1, 0),
-            p_engine_name: engine_name.as_ptr(),
-            engine_version: vk::make_api_version(0, 0, 1, 0),
-            api_version: vk::make_api_version(1, 0, 1, 0),
-            ..Default::default()
-        };
-
-        let create_info = vk::InstanceCreateInfo {
-            s_type: vk::StructureType::INSTANCE_CREATE_INFO,
-            p_next: std::ptr::null(),
-            flags: vk::InstanceCreateFlags::empty(),
-            p_application_info: &app_info,
-            pp_enabled_layer_names: layers_raw.as_ptr(),
-            enabled_layer_count: layers.len() as u32,
-            pp_enabled_extension_names: extensions.as_ptr(),
-            enabled_extension_count: extensions.len() as u32,
-            ..Default::default()
-        };
-
+        let app_name = c"Vulkan Video";
+        
+        let app_info = vk::ApplicationInfo::default()
+            .application_name(app_name)
+            .application_version(0)
+            .engine_name(app_name)
+            .engine_version(0)
+            .api_version(vk::make_api_version(0, 1, 0, 0));
+        
+        let create_info = vk::InstanceCreateInfo::default()
+            .application_info(&app_info)
+            .enabled_layer_names(&layers_raw)
+            .enabled_extension_names(&extensions);
+        
         let instance = unsafe { entry.create_instance(&create_info, None).expect("Failed to create instance.") };
 
         (entry, instance)
@@ -697,23 +739,13 @@ impl Drop for App {
                 self.device.logical.destroy_fence(self.sync_objects.inflight_fences[i], None);
             }
 
+            self.cleanup_swapchain();
 
 	    self.device.logical.destroy_command_pool(self.command_pool, None);
-	    for framebuffer in self.framebuffers.iter() {
-		self.device.logical.destroy_framebuffer(*framebuffer, None);
-	    }
 
-            self.device.logical.destroy_pipeline(self.graphics_pipeline.graphics, None);
-
-	    self.device.logical.destroy_pipeline_layout(self.graphics_pipeline.layout, None);
-	    self.device.logical.destroy_render_pass(self.render_pass, None);
-            for &image in self.image_views.iter() {
-                self.device.logical.destroy_image_view(image, None);
-            }
-
-            self.swapchain.loader.destroy_swapchain(self.swapchain.swapchain, None);
             self.device.logical.destroy_device(None);
             self.surface.loader.destroy_surface(self.surface.surface, None);
+
             self.debug_utils_loader.destroy_debug_utils_messenger(self.debug_messenger, None);
             self.instance.destroy_instance(None);
         }
