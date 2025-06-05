@@ -1,14 +1,18 @@
 mod vk_bundles;
 mod shader;
+mod mesh;
+mod vk_utils;
 
 use std::ffi::{c_char, c_void, CStr, CString};
 
 use ash::{ext::debug_utils, khr};
 
+use mesh::{Mesh, Vertex};
 use vk_bundles::*;
 
 use ash::vk;
 use simple_logger::SimpleLogger;
+
 use winit::{
     event::{Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
@@ -17,11 +21,14 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-const WINDOW_WIDTH: u32 = 1080;
-const WINDOW_HEIGHT: u32 = 1080;
+const WINDOW_WIDTH: u32 = 100;
+const WINDOW_HEIGHT: u32 = 100;
 const MAX_FRAMES_IN_FLIGHT: usize = 10;
 
 struct App {
+
+    mesh_bundles: Vec<MeshBundle>,
+
     _entry: ash::Entry,
     instance: ash::Instance,
     debug_utils_loader: debug_utils::Instance,
@@ -57,11 +64,14 @@ impl App {
 	let graphics_pipeline = App::create_graphics_pipeline(&device, &swapchain, &render_pass);
 	let framebuffers = App::create_framebuffers(&device, &render_pass, &image_views, &swapchain);
 	let command_pool = App::create_command_pool(&device);
-        let command_buffers = App::create_command_buffers(&device, command_pool, &graphics_pipeline, &framebuffers, render_pass, &swapchain);
+        let mesh_bundles = App::create_vertex_objects(&instance, &device);
+        let command_buffers = App::create_command_buffers(&instance, &device, command_pool, &graphics_pipeline, &framebuffers, render_pass, &swapchain, &mesh_bundles);
 	let sync_objects = App::create_sync_objects(&device);
 
 
         Self {
+            mesh_bundles,
+
             _entry: entry,
 
             instance,
@@ -146,13 +156,14 @@ impl App {
                 _ => panic!("Failed to execute queue present."),
             },
         };
+
+        self.current_frame = (self.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
+
         if is_resized {
             self.is_framebuffer_resized = false;
             self.recreate_swapchain();
+            return self.render();
         }
-
-
-        self.current_frame = (self.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
     }
 
     fn handle_event(&mut self, event: WindowEvent) {
@@ -164,9 +175,11 @@ impl App {
                 self.window.pre_present_notify();
                 self.render();
             }
+
             WindowEvent::Resized(_) => {
                 self.window.request_redraw();
-            }            
+            }
+
             WindowEvent::KeyboardInput {
                 device_id: _,
                 event,
@@ -200,7 +213,7 @@ impl App {
 	self.render_pass = App::create_render_pass(&self.device, &self.swapchain);
 	self.graphics_pipeline = App::create_graphics_pipeline(&self.device, &self.swapchain, &self.render_pass);
 	self.framebuffers = App::create_framebuffers(&self.device, &self.render_pass, &self.image_views, &self.swapchain);
-        self.command_buffers = App::create_command_buffers(&self.device, self.command_pool, &self.graphics_pipeline, &self.framebuffers, self.render_pass, &self.swapchain);
+        self.command_buffers = App::create_command_buffers(&self.instance, &self.device, self.command_pool, &self.graphics_pipeline, &self.framebuffers, self.render_pass, &self.swapchain, &self.mesh_bundles);
     }
 
     fn cleanup_swapchain(&self) {
@@ -254,19 +267,19 @@ impl App {
 
         // Create the instance
         let app_name = c"Vulkan Video";
-        
+
         let app_info = vk::ApplicationInfo::default()
             .application_name(app_name)
             .application_version(0)
             .engine_name(app_name)
             .engine_version(0)
             .api_version(vk::make_api_version(0, 1, 0, 0));
-        
+
         let create_info = vk::InstanceCreateInfo::default()
             .application_info(&app_info)
             .enabled_layer_names(&layers_raw)
             .enabled_extension_names(&extensions);
-        
+
         let instance = unsafe { entry.create_instance(&create_info, None).expect("Failed to create instance.") };
 
         (entry, instance)
@@ -440,7 +453,12 @@ impl App {
 
 	let shader_stage_create_infos = [vertex_shader_stage, fragment_shader_stage];
 
-	let vertex_input_state_info = vk::PipelineVertexInputStateCreateInfo::default();
+        let bindings = Mesh::get_binding_descriptions();
+        let attributes = Mesh::get_attribute_descriptions();
+        let vertex_input_state_info = vk::PipelineVertexInputStateCreateInfo::default()
+            .vertex_binding_descriptions(&bindings)
+            .vertex_attribute_descriptions(&attributes);
+
 	let vertex_input_assembly_state_info = vk::PipelineInputAssemblyStateCreateInfo::default()
 	    .topology(vk::PrimitiveTopology::TRIANGLE_LIST)
 	    .primitive_restart_enable(false);
@@ -611,7 +629,21 @@ impl App {
         }
     }
 
-    fn create_command_buffers(device: &DeviceBundle, command_pool: vk::CommandPool, graphics_pipeline: &GraphicsPipelineBundle, framebuffers: &Vec<vk::Framebuffer>, render_pass: vk::RenderPass, swapchain: &SwapchainBundle) -> Vec<vk::CommandBuffer> {
+    fn create_vertex_objects(instance: &ash::Instance, device: &DeviceBundle) -> Vec<MeshBundle>{
+        let triangle = Mesh::triangle();
+        let (vertex_buffer, vertex_buffer_memory) = vk_utils::gen_vertex_buffer(instance, device, triangle.size() as u64).expect("Failed to create vertex buffer.");
+        unsafe {
+            device.logical.bind_buffer_memory(vertex_buffer, vertex_buffer_memory, 0).expect("Failed to bind buffer");
+            let data_ptr = device.logical.map_memory(vertex_buffer_memory, 0, triangle.size() as u64, vk::MemoryMapFlags::empty())
+                .expect("Failed to map memory") as *mut Vertex;
+            data_ptr.copy_from_nonoverlapping(triangle.vertices.as_ptr(), triangle.vertices.len());
+            device.logical.unmap_memory(vertex_buffer_memory);
+        }
+
+        return vec![MeshBundle { mesh: triangle, vbo: vertex_buffer, vbo_mem: vertex_buffer_memory}];
+    }
+
+    fn create_command_buffers(instance: &ash::Instance, device: &DeviceBundle, command_pool: vk::CommandPool, graphics_pipeline: &GraphicsPipelineBundle, framebuffers: &Vec<vk::Framebuffer>, render_pass: vk::RenderPass, swapchain: &SwapchainBundle, mesh_bundles: &[MeshBundle]) -> Vec<vk::CommandBuffer> {
         let command_buffer_allocate_info = vk::CommandBufferAllocateInfo::default()
 	    .command_buffer_count(framebuffers.len() as u32)
             .command_pool(command_pool)
@@ -643,28 +675,12 @@ impl App {
                 .render_area(vk::Rect2D { offset: vk::Offset2D { x: 0, y: 0 }, extent: swapchain.extent})
                 .clear_values(&clear_values);
 
-	    // let viewports = [vk::Viewport {
-	    //     x: 0.0,
-	    //     y: 0.0,
-	    //     width: swapchain.extent.width as f32,
-	    //     height: swapchain.extent.height as f32,
-	    //     min_depth: 0.0,
-	    //     max_depth: 1.0
-	    // }];
-
-	    // let scissors = [vk::Rect2D {
-	    //     offset: vk::Offset2D {x: 0, y: 0},
-	    //     extent: swapchain.extent
-	    // }];
-
-
             unsafe {
                 device.logical.cmd_begin_render_pass(command_buffer, &render_pass_begin_info, vk::SubpassContents::INLINE);
                 device.logical.cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, graphics_pipeline.graphics);
-                // device.logical.cmd_set_viewport(command_buffer, 0, &viewports);
-                // device.logical.cmd_set_scissor(command_buffer, 0, &scissors);
-                device.logical.cmd_draw(command_buffer, 3, 1, 0, 0);
-		device.logical.cmd_end_render_pass(command_buffer);
+                device.logical.cmd_bind_vertex_buffers(command_buffer, 0, &[mesh_bundles[0].vbo], &[0]);
+                device.logical.cmd_draw(command_buffer, mesh_bundles[0].mesh.vertices.len() as u32, 1, 0, 0);
+                device.logical.cmd_end_render_pass(command_buffer);
 		device.logical.end_command_buffer(command_buffer).expect("Failed to record Command Buffer at Ending!");
             }
         }
@@ -741,6 +757,11 @@ impl Drop for App {
 
             self.cleanup_swapchain();
 
+            for mesh in self.mesh_bundles.iter() {
+                self.device.logical.destroy_buffer(mesh.vbo, None);
+                self.device.logical.free_memory(mesh.vbo_mem, None);
+            }
+
 	    self.device.logical.destroy_command_pool(self.command_pool, None);
 
             self.device.logical.destroy_device(None);
@@ -800,6 +821,7 @@ fn main() {
             Event::AboutToWait => {
                 app.window.request_redraw();
             }
+
 
             _ => (),
         }

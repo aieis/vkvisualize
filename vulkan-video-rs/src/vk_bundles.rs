@@ -1,6 +1,8 @@
 use ash::vk;
 use ash::khr;
 
+use crate::mesh::Mesh;
+
 pub struct SurfaceBundle {
     pub surface: vk::SurfaceKHR,
     pub loader: khr::surface::Instance
@@ -23,11 +25,17 @@ pub struct SwapchainBundle {
 
 pub struct GraphicsPipelineBundle {
     pub graphics: vk::Pipeline,
-    pub layout: vk::PipelineLayout
+    pub layout: vk::PipelineLayout,
 }
 
 pub struct SyncObjectsBundle {
     pub image_available_semaphores: Vec<vk::Semaphore>,
     pub render_finished_semaphores: Vec<vk::Semaphore>,
     pub inflight_fences: Vec<vk::Fence>,
+}
+
+pub struct MeshBundle {
+    pub mesh: Mesh,
+    pub vbo: vk::Buffer,
+    pub vbo_mem: vk::DeviceMemory
 }
