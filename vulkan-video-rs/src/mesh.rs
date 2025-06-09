@@ -16,7 +16,7 @@ pub struct Mesh {
 
 impl Mesh {
     pub fn size(&self) -> usize {
-        std::mem::size_of_val(&self.vertices)
+        std::mem::size_of_val(&self.vertices[..])
     }
     pub fn get_binding_descriptions() -> [vk::VertexInputBindingDescription; 1] {
         [vk::VertexInputBindingDescription {
