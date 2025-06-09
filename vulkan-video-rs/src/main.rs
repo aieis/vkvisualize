@@ -332,14 +332,18 @@ impl App {
             .queue_create_infos(std::slice::from_ref(&queue_info))
             .enabled_extension_names(&device_extension_names_raw);
 
-        let device: ash::Device = unsafe { instance.create_device(queues[0].1, &device_create_info, None).unwrap() };
-        let present_queue = unsafe { device.get_device_queue(queues[0].0 as  u32, 0) };
+        let physical = queues[0].1;
+        let queue_family_index = queues[0].0 as u32;
+        let device = unsafe { instance.create_device(physical, &device_create_info, None).unwrap() };
+        let present_queue = unsafe { device.get_device_queue(queue_family_index, 0) };
+        let mem_properties = unsafe { instance.get_physical_device_memory_properties(physical) };
 
         DeviceBundle {
             logical: device,
-            physical: queues[0].1,
-            queue_family_index: queues[0].0 as u32,
+            physical,
+            queue_family_index,
             present_queue,
+            mem_properties
         }
     }
 
@@ -631,7 +635,7 @@ impl App {
 
     fn create_vertex_objects(instance: &ash::Instance, device: &DeviceBundle) -> Vec<MeshBundle>{
         let triangle = Mesh::triangle();
-        let (vertex_buffer, vertex_buffer_memory) = vk_utils::gen_vertex_buffer(instance, device, triangle.size() as u64).expect("Failed to create vertex buffer.");
+        let (vertex_buffer, vertex_buffer_memory) = vk_utils::create_buffer(device, triangle.size() as u64).expect("Failed to create vertex buffer.");
         unsafe {
             device.logical.bind_buffer_memory(vertex_buffer, vertex_buffer_memory, 0).expect("Failed to bind buffer");
             let data_ptr = device.logical.map_memory(vertex_buffer_memory, 0, triangle.size() as u64, vk::MemoryMapFlags::empty())

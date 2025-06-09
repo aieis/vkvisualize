@@ -12,7 +12,8 @@ pub struct DeviceBundle {
     pub logical: ash::Device,
     pub physical: vk::PhysicalDevice,
     pub queue_family_index: u32,
-    pub present_queue: vk::Queue
+    pub present_queue: vk::Queue,
+    pub mem_properties: vk::PhysicalDeviceMemoryProperties
 }
 
 pub struct SwapchainBundle {
