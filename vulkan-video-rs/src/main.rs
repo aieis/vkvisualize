@@ -65,7 +65,7 @@ impl App {
 	let framebuffers = App::create_framebuffers(&device, &render_pass, &image_views, &swapchain);
 	let command_pool = App::create_command_pool(&device);
         let mesh_bundles = App::create_vertex_objects(&instance, &device);
-        let command_buffers = App::create_command_buffers(&instance, &device, command_pool, &graphics_pipeline, &framebuffers, render_pass, &swapchain, &mesh_bundles);
+        let command_buffers = App::create_command_buffers(&device, command_pool, &graphics_pipeline, &framebuffers, render_pass, &swapchain, &mesh_bundles);
 	let sync_objects = App::create_sync_objects(&device);
 
 
@@ -213,7 +213,7 @@ impl App {
 	self.render_pass = App::create_render_pass(&self.device, &self.swapchain);
 	self.graphics_pipeline = App::create_graphics_pipeline(&self.device, &self.swapchain, &self.render_pass);
 	self.framebuffers = App::create_framebuffers(&self.device, &self.render_pass, &self.image_views, &self.swapchain);
-        self.command_buffers = App::create_command_buffers(&self.instance, &self.device, self.command_pool, &self.graphics_pipeline, &self.framebuffers, self.render_pass, &self.swapchain, &self.mesh_bundles);
+        self.command_buffers = App::create_command_buffers(&self.device, self.command_pool, &self.graphics_pipeline, &self.framebuffers, self.render_pass, &self.swapchain, &self.mesh_bundles);
     }
 
     fn cleanup_swapchain(&self) {
@@ -643,7 +643,7 @@ impl App {
         return vec![MeshBundle { mesh: triangle, vbo: vertex_buffer, vbo_mem: vertex_buffer_memory}];
     }
 
-    fn create_command_buffers(instance: &ash::Instance, device: &DeviceBundle, command_pool: vk::CommandPool, graphics_pipeline: &GraphicsPipelineBundle, framebuffers: &Vec<vk::Framebuffer>, render_pass: vk::RenderPass, swapchain: &SwapchainBundle, mesh_bundles: &[MeshBundle]) -> Vec<vk::CommandBuffer> {
+    fn create_command_buffers(device: &DeviceBundle, command_pool: vk::CommandPool, graphics_pipeline: &GraphicsPipelineBundle, framebuffers: &Vec<vk::Framebuffer>, render_pass: vk::RenderPass, swapchain: &SwapchainBundle, mesh_bundles: &[MeshBundle]) -> Vec<vk::CommandBuffer> {
         let command_buffer_allocate_info = vk::CommandBufferAllocateInfo::default()
 	    .command_buffer_count(framebuffers.len() as u32)
             .command_pool(command_pool)
