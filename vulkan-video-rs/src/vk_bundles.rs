@@ -32,11 +32,17 @@ pub struct GraphicsPipelineBundle {
 pub struct SyncObjectsBundle {
     pub image_available_semaphores: Vec<vk::Semaphore>,
     pub render_finished_semaphores: Vec<vk::Semaphore>,
-    pub inflight_fences: Vec<vk::Fence>,
+    pub in_flight_fences: Vec<vk::Fence>,
+    pub spare_fences: Vec<vk::Fence>,
 }
 
 pub struct MeshBundle {
     pub mesh: Mesh,
-    pub vbo: vk::Buffer,
-    pub vbo_mem: vk::DeviceMemory
+    pub vbo: BufferBundle,
+    pub staging: BufferBundle,
+}
+
+pub struct BufferBundle {
+    pub buffer: vk::Buffer,
+    pub memory: vk::DeviceMemory
 }

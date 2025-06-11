@@ -21,8 +21,8 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-const WINDOW_WIDTH: u32 = 100;
-const WINDOW_HEIGHT: u32 = 100;
+const WINDOW_WIDTH: u32 = 10;
+const WINDOW_HEIGHT: u32 = 10;
 const MAX_FRAMES_IN_FLIGHT: usize = 10;
 
 struct App {
@@ -43,6 +43,9 @@ struct App {
     framebuffers: Vec<vk::Framebuffer>,
     command_pool: vk::CommandPool,
     command_buffers: Vec<vk::CommandBuffer>,
+
+    in_flight_buffers: Vec<(vk::CommandBuffer, vk::Fence)>,
+
     sync_objects: SyncObjectsBundle,
     current_frame: usize,
     is_framebuffer_resized: bool,
@@ -64,7 +67,7 @@ impl App {
 	let graphics_pipeline = App::create_graphics_pipeline(&device, &swapchain, &render_pass);
 	let framebuffers = App::create_framebuffers(&device, &render_pass, &image_views, &swapchain);
 	let command_pool = App::create_command_pool(&device);
-        let mesh_bundles = App::create_vertex_objects(&instance, &device);
+        let mesh_bundles = App::create_vertex_objects(&device);
         let command_buffers = App::create_command_buffers(&device, command_pool, &graphics_pipeline, &framebuffers, render_pass, &swapchain, &mesh_bundles);
 	let sync_objects = App::create_sync_objects(&device);
 
@@ -87,6 +90,8 @@ impl App {
 	    framebuffers,
 	    command_pool,
 	    command_buffers,
+            in_flight_buffers: vec![],
+
 	    sync_objects,
 	    current_frame: 0,
             is_framebuffer_resized: false,
@@ -96,8 +101,40 @@ impl App {
         }
     }
 
+    fn update(&mut self) {
+
+        self.cleanup_in_flight_buffers();
+
+        if self.sync_objects.spare_fences.len() == 0 {
+            return;
+        }
+
+        for mesh_bundle in self.mesh_bundles.iter_mut() {
+            mesh_bundle.mesh.hue_shift();
+            unsafe {
+                let data_ptr = self.device.logical.map_memory(mesh_bundle.staging.memory, 0, mesh_bundle.mesh.size() as u64, vk::MemoryMapFlags::empty())
+                    .expect("Failed to map memory") as *mut Vertex;
+                data_ptr.copy_from_nonoverlapping(mesh_bundle.mesh.vertices.as_ptr(), mesh_bundle.mesh.vertices.len());
+                self.device.logical.unmap_memory(mesh_bundle.staging.memory);
+            }
+        }
+
+        let command_buffers = [App::create_copy_command_buffer(&self.device, self.command_pool, &self.mesh_bundles)];
+
+        let submit_info = vk::SubmitInfo::default()
+            .command_buffers(&command_buffers);
+
+        let fences = [self.sync_objects.spare_fences.pop().unwrap()];
+        unsafe {
+            self.device.logical.reset_fences(&fences).expect("Failed to reset fences.");
+	    self.device.logical.queue_submit(self.device.present_queue, &[submit_info], fences[0]).expect("Failure submitting to the queue.");
+        }
+
+        self.in_flight_buffers.push((command_buffers[0], fences[0]));
+    }
+
     fn render(&mut self) {
-        let wait_fences = [self.sync_objects.inflight_fences[self.current_frame]];
+        let wait_fences = [self.sync_objects.in_flight_fences[self.current_frame]];
 
         let (image_index, _is_sub_optimal) = unsafe {
             self.device.logical.wait_for_fences(&wait_fences, true, std::u64::MAX)
@@ -134,7 +171,7 @@ impl App {
 
         unsafe {
             self.device.logical.reset_fences(&wait_fences).expect("Failed to reset Fence!");
-	    self.device.logical.queue_submit(self.device.present_queue, &submit_infos, self.sync_objects.inflight_fences[self.current_frame],)
+	    self.device.logical.queue_submit(self.device.present_queue, &submit_infos, self.sync_objects.in_flight_fences[self.current_frame],)
                 .expect("Failed to execute queue submit.");
         }
 
@@ -173,6 +210,7 @@ impl App {
             }
             WindowEvent::RedrawRequested => {
                 self.window.pre_present_notify();
+                self.update();
                 self.render();
             }
 
@@ -229,6 +267,27 @@ impl App {
                 self.device.logical.destroy_image_view(image_view, None);
             }
             self.swapchain.loader.destroy_swapchain(self.swapchain.swapchain, None);
+        }
+    }
+
+    fn cleanup_in_flight_buffers(&mut self) {
+        let len_orig = self.in_flight_buffers.len();
+        for i in 0..self.in_flight_buffers.len() {
+            let idx = len_orig-i-1;
+            let (command_buffer, fence) = self.in_flight_buffers[idx];
+            let fence_status =  unsafe {
+                self.device.logical.get_fence_status(fence).expect("Getting fence status failed")
+            };
+
+            if fence_status {
+                let command_buffers = [command_buffer];
+                unsafe {
+                    self.device.logical.free_command_buffers(self.command_pool, &command_buffers);
+                }
+
+                self.sync_objects.spare_fences.push(fence);
+                self.in_flight_buffers.remove(idx);
+            }
         }
     }
 
@@ -633,19 +692,54 @@ impl App {
         }
     }
 
-    fn create_vertex_objects(instance: &ash::Instance, device: &DeviceBundle) -> Vec<MeshBundle>{
-        let triangle = Mesh::triangle();
-        let (vertex_buffer, vertex_buffer_memory) = vk_utils::create_buffer(device, triangle.size() as u64).expect("Failed to create vertex buffer.");
+    fn create_vertex_objects(device: &DeviceBundle) -> Vec<MeshBundle>{
+        let mesh = Mesh::triangle();
+        let size = mesh.size() as u64;
+
+        let required_memory_flags = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
+        let usage = vk::BufferUsageFlags::TRANSFER_SRC;
+        let staging = vk_utils::create_buffer(device, size, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+        let required_memory_flags = vk::MemoryPropertyFlags::DEVICE_LOCAL;
+        let usage = vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::VERTEX_BUFFER;
+        let vbo = vk_utils::create_buffer(device, size, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+
+        return vec![MeshBundle { mesh, vbo, staging}];
+    }
+
+    fn create_copy_command_buffer(device: &DeviceBundle, command_pool: vk::CommandPool, mesh_bundles: &[MeshBundle]) -> vk::CommandBuffer {
+
+        let command_buffer_allocate_info = vk::CommandBufferAllocateInfo::default()
+	    .command_buffer_count(1)
+            .command_pool(command_pool)
+            .level(vk::CommandBufferLevel::PRIMARY);
+
+        let command_buffer = unsafe {
+            device.logical.allocate_command_buffers(&command_buffer_allocate_info).expect("Failed to allocate Command Buffers!")[0]
+        };
+
+        let command_buffer_begin_info =  vk::CommandBufferBeginInfo::default()
+            .flags(vk::CommandBufferUsageFlags::SIMULTANEOUS_USE);
+
         unsafe {
-            device.logical.bind_buffer_memory(vertex_buffer, vertex_buffer_memory, 0).expect("Failed to bind buffer");
-            let data_ptr = device.logical.map_memory(vertex_buffer_memory, 0, triangle.size() as u64, vk::MemoryMapFlags::empty())
-                .expect("Failed to map memory") as *mut Vertex;
-            data_ptr.copy_from_nonoverlapping(triangle.vertices.as_ptr(), triangle.vertices.len());
-            device.logical.unmap_memory(vertex_buffer_memory);
+            device.logical.begin_command_buffer(command_buffer, &command_buffer_begin_info).expect("Failed to begin buffer.");
+
+            for mesh_bundle in mesh_bundles {
+                let copy_region = [
+                    vk::BufferCopy::default()
+                        .src_offset(0)
+                        .dst_offset(0)
+                        .size(mesh_bundle.mesh.size() as u64)
+                ];
+
+                device.logical.cmd_copy_buffer(command_buffer, mesh_bundle.staging.buffer, mesh_bundle.vbo.buffer, &copy_region);
+            }
+
+            device.logical.end_command_buffer(command_buffer).expect("Failed to end buffer.");
         }
 
-        return vec![MeshBundle { mesh: triangle, vbo: vertex_buffer, vbo_mem: vertex_buffer_memory}];
+        command_buffer
     }
+
 
     fn create_command_buffers(device: &DeviceBundle, command_pool: vk::CommandPool, graphics_pipeline: &GraphicsPipelineBundle, framebuffers: &Vec<vk::Framebuffer>, render_pass: vk::RenderPass, swapchain: &SwapchainBundle, mesh_bundles: &[MeshBundle]) -> Vec<vk::CommandBuffer> {
         let command_buffer_allocate_info = vk::CommandBufferAllocateInfo::default()
@@ -682,7 +776,7 @@ impl App {
             unsafe {
                 device.logical.cmd_begin_render_pass(command_buffer, &render_pass_begin_info, vk::SubpassContents::INLINE);
                 device.logical.cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, graphics_pipeline.graphics);
-                device.logical.cmd_bind_vertex_buffers(command_buffer, 0, &[mesh_bundles[0].vbo], &[0]);
+                device.logical.cmd_bind_vertex_buffers(command_buffer, 0, &[mesh_bundles[0].vbo.buffer], &[0]);
                 device.logical.cmd_draw(command_buffer, mesh_bundles[0].mesh.vertices.len() as u32, 1, 0, 0);
                 device.logical.cmd_end_render_pass(command_buffer);
 		device.logical.end_command_buffer(command_buffer).expect("Failed to record Command Buffer at Ending!");
@@ -696,7 +790,9 @@ impl App {
         let mut sync_objects = SyncObjectsBundle {
             image_available_semaphores: vec![],
             render_finished_semaphores: vec![],
-            inflight_fences: vec![],
+            in_flight_fences: vec![],
+
+            spare_fences: vec![],
         };
 
         let semaphore_create_info = vk::SemaphoreCreateInfo::default();
@@ -710,12 +806,18 @@ impl App {
                     .expect("Failed to create Semaphore Object!");
                 let render_finished_semaphore = device.logical.create_semaphore(&semaphore_create_info, None)
                     .expect("Failed to create Semaphore Object!");
+
                 let inflight_fence = device.logical.create_fence(&fence_create_info, None)
                     .expect("Failed to create Fence Object!");
 
+                let inflight_fence_2 = device.logical.create_fence(&fence_create_info, None)
+                    .expect("Failed to create Fence Object!");
+
+
                 sync_objects.image_available_semaphores.push(image_available_semaphore);
                 sync_objects.render_finished_semaphores.push(render_finished_semaphore);
-                sync_objects.inflight_fences.push(inflight_fence);
+                sync_objects.in_flight_fences.push(inflight_fence);
+                sync_objects.spare_fences.push(inflight_fence_2);
             }
         }
 
@@ -752,18 +854,25 @@ impl Drop for App {
     fn drop(&mut self) {
         unsafe {
             let _ = self.device.logical.device_wait_idle();
+            self.cleanup_in_flight_buffers();
 
             for i in 0..MAX_FRAMES_IN_FLIGHT {
                 self.device.logical.destroy_semaphore(self.sync_objects.image_available_semaphores[i], None);
                 self.device.logical.destroy_semaphore(self.sync_objects.render_finished_semaphores[i], None);
-                self.device.logical.destroy_fence(self.sync_objects.inflight_fences[i], None);
+                self.device.logical.destroy_fence(self.sync_objects.in_flight_fences[i], None);
+            }
+
+            for i in 0..self.sync_objects.spare_fences.len() {
+                self.device.logical.destroy_fence(self.sync_objects.spare_fences[i], None);
             }
 
             self.cleanup_swapchain();
 
             for mesh in self.mesh_bundles.iter() {
-                self.device.logical.destroy_buffer(mesh.vbo, None);
-                self.device.logical.free_memory(mesh.vbo_mem, None);
+                self.device.logical.destroy_buffer(mesh.vbo.buffer, None);
+                self.device.logical.free_memory(mesh.vbo.memory, None);
+                self.device.logical.destroy_buffer(mesh.staging.buffer, None);
+                self.device.logical.free_memory(mesh.staging.memory, None);
             }
 
 	    self.device.logical.destroy_command_pool(self.command_pool, None);
