@@ -116,6 +116,12 @@ impl App {
                     .expect("Failed to map memory") as *mut Vertex;
                 data_ptr.copy_from_nonoverlapping(mesh_bundle.mesh.vertices.as_ptr(), mesh_bundle.mesh.vertices.len());
                 self.device.logical.unmap_memory(mesh_bundle.staging.memory);
+
+                let data_ptr = self.device.logical.map_memory(mesh_bundle.staging_ind.memory, 0, mesh_bundle.mesh.size_ind() as u64, vk::MemoryMapFlags::empty())
+                    .expect("Failed to map memory") as *mut u16;
+                data_ptr.copy_from_nonoverlapping(mesh_bundle.mesh.indices.as_ptr(), mesh_bundle.mesh.indices.len());
+                self.device.logical.unmap_memory(mesh_bundle.staging_ind.memory);
+
             }
         }
 
@@ -693,17 +699,29 @@ impl App {
     }
 
     fn create_vertex_objects(device: &DeviceBundle) -> Vec<MeshBundle>{
+
         let mesh = Mesh::triangle();
         let size = mesh.size() as u64;
 
         let required_memory_flags = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
         let usage = vk::BufferUsageFlags::TRANSFER_SRC;
         let staging = vk_utils::create_buffer(device, size, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+
         let required_memory_flags = vk::MemoryPropertyFlags::DEVICE_LOCAL;
         let usage = vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::VERTEX_BUFFER;
         let vbo = vk_utils::create_buffer(device, size, usage, required_memory_flags).expect("Failed to create vertex buffer.");
 
-        return vec![MeshBundle { mesh, vbo, staging}];
+        let size = mesh.size_ind() as u64;
+        let required_memory_flags = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
+        let usage = vk::BufferUsageFlags::TRANSFER_SRC;
+        let staging_ind = vk_utils::create_buffer(device, size, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+
+        let required_memory_flags = vk::MemoryPropertyFlags::DEVICE_LOCAL;
+        let usage = vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::INDEX_BUFFER;
+        let ind = vk_utils::create_buffer(device, size, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+
+
+        return vec![MeshBundle { mesh, vbo, staging, staging_ind, ind}];
     }
 
     fn create_copy_command_buffer(device: &DeviceBundle, command_pool: vk::CommandPool, mesh_bundles: &[MeshBundle]) -> vk::CommandBuffer {
@@ -724,14 +742,11 @@ impl App {
             device.logical.begin_command_buffer(command_buffer, &command_buffer_begin_info).expect("Failed to begin buffer.");
 
             for mesh_bundle in mesh_bundles {
-                let copy_region = [
-                    vk::BufferCopy::default()
-                        .src_offset(0)
-                        .dst_offset(0)
-                        .size(mesh_bundle.mesh.size() as u64)
-                ];
-
+                let copy_region = [ vk::BufferCopy::default().size(mesh_bundle.mesh.size() as u64)];
                 device.logical.cmd_copy_buffer(command_buffer, mesh_bundle.staging.buffer, mesh_bundle.vbo.buffer, &copy_region);
+
+                let copy_region = [ vk::BufferCopy::default().size(mesh_bundle.mesh.size_ind() as u64)];
+                device.logical.cmd_copy_buffer(command_buffer, mesh_bundle.staging_ind.buffer, mesh_bundle.ind.buffer, &copy_region);
             }
 
             device.logical.end_command_buffer(command_buffer).expect("Failed to end buffer.");
@@ -777,7 +792,8 @@ impl App {
                 device.logical.cmd_begin_render_pass(command_buffer, &render_pass_begin_info, vk::SubpassContents::INLINE);
                 device.logical.cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, graphics_pipeline.graphics);
                 device.logical.cmd_bind_vertex_buffers(command_buffer, 0, &[mesh_bundles[0].vbo.buffer], &[0]);
-                device.logical.cmd_draw(command_buffer, mesh_bundles[0].mesh.vertices.len() as u32, 1, 0, 0);
+                device.logical.cmd_bind_index_buffer(command_buffer, mesh_bundles[0].ind.buffer, 0, vk::IndexType::UINT16);
+                device.logical.cmd_draw_indexed(command_buffer, mesh_bundles[0].mesh.indices.len() as u32, 1, 0, 0, 0);
                 device.logical.cmd_end_render_pass(command_buffer);
 		device.logical.end_command_buffer(command_buffer).expect("Failed to record Command Buffer at Ending!");
             }
@@ -873,6 +889,10 @@ impl Drop for App {
                 self.device.logical.free_memory(mesh.vbo.memory, None);
                 self.device.logical.destroy_buffer(mesh.staging.buffer, None);
                 self.device.logical.free_memory(mesh.staging.memory, None);
+                self.device.logical.destroy_buffer(mesh.staging_ind.buffer, None);
+                self.device.logical.free_memory(mesh.staging_ind.memory, None);
+                self.device.logical.destroy_buffer(mesh.ind.buffer, None);
+                self.device.logical.free_memory(mesh.ind.memory, None);
             }
 
 	    self.device.logical.destroy_command_pool(self.command_pool, None);

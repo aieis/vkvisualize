@@ -40,6 +40,8 @@ pub struct MeshBundle {
     pub mesh: Mesh,
     pub vbo: BufferBundle,
     pub staging: BufferBundle,
+    pub staging_ind: BufferBundle,
+    pub ind: BufferBundle,
 }
 
 pub struct BufferBundle {
