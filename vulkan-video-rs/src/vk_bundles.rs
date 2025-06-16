@@ -48,3 +48,8 @@ pub struct BufferBundle {
     pub buffer: vk::Buffer,
     pub memory: vk::DeviceMemory
 }
+
+pub struct CommandBundle {
+    pub pool: vk::CommandPool,
+    pub buffers: Vec<vk::CommandBuffer>
+}

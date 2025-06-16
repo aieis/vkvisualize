@@ -2,7 +2,8 @@ use anyhow::{Result, anyhow};
 
 use ash::vk;
 
-use crate::{BufferBundle, DeviceBundle};
+use crate::{mesh::Mesh, BufferBundle, DeviceBundle, MeshBundle};
+use crate::vk_utils;
 
 
 pub fn create_buffer(device: &DeviceBundle, size: u64, usage: vk::BufferUsageFlags, properties: vk::MemoryPropertyFlags) -> Result<BufferBundle>{
@@ -26,6 +27,31 @@ pub fn create_buffer(device: &DeviceBundle, size: u64, usage: vk::BufferUsageFla
 
 
     Ok( BufferBundle { buffer, memory } )
+}
+
+
+pub fn create_vertex_object(device: &DeviceBundle, mesh: Mesh) -> MeshBundle {
+    let size = mesh.size() as u64;
+
+    let required_memory_flags = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
+    let usage = vk::BufferUsageFlags::TRANSFER_SRC;
+    let staging = vk_utils::create_buffer(device, size, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+
+    let required_memory_flags = vk::MemoryPropertyFlags::DEVICE_LOCAL;
+    let usage = vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::VERTEX_BUFFER;
+    let vbo = vk_utils::create_buffer(device, size, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+
+    let size = mesh.size_ind() as u64;
+    let required_memory_flags = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
+    let usage = vk::BufferUsageFlags::TRANSFER_SRC;
+    let staging_ind = vk_utils::create_buffer(device, size, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+
+    let required_memory_flags = vk::MemoryPropertyFlags::DEVICE_LOCAL;
+    let usage = vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::INDEX_BUFFER;
+    let ind = vk_utils::create_buffer(device, size, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+
+
+    MeshBundle { mesh, vbo, staging, staging_ind, ind}
 }
 
 
