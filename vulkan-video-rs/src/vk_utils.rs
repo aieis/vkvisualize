@@ -30,7 +30,7 @@ pub fn create_buffer(device: &DeviceBundle, size: u64, usage: vk::BufferUsageFla
 }
 
 
-pub fn create_vertex_object(device: &DeviceBundle, mesh: Mesh) -> MeshBundle {
+pub fn create_mesh_bundle(device: &DeviceBundle, mesh: Mesh) -> MeshBundle {
     let size = mesh.size() as u64;
 
     let required_memory_flags = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
@@ -50,9 +50,30 @@ pub fn create_vertex_object(device: &DeviceBundle, mesh: Mesh) -> MeshBundle {
     let usage = vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::INDEX_BUFFER;
     let ind = vk_utils::create_buffer(device, size, usage, required_memory_flags).expect("Failed to create vertex buffer.");
 
-
     MeshBundle { mesh, vbo, staging, staging_ind, ind}
 }
+
+
+pub fn record_mesh_update(device: &DeviceBundle, command_buffer: &vk::CommandBuffer, mesh_bundles: &[MeshBundle]) {
+
+    let command_buffer_begin_info =  vk::CommandBufferBeginInfo::default()
+        .flags(vk::CommandBufferUsageFlags::SIMULTANEOUS_USE);
+
+    unsafe {
+        device.logical.begin_command_buffer(*command_buffer, &command_buffer_begin_info).expect("Failed to begin buffer.");
+
+        for mesh_bundle in mesh_bundles {
+            let copy_region = [ vk::BufferCopy::default().size(mesh_bundle.mesh.size() as u64)];
+            device.logical.cmd_copy_buffer(*command_buffer, mesh_bundle.staging.buffer, mesh_bundle.vbo.buffer, &copy_region);
+
+            let copy_region = [ vk::BufferCopy::default().size(mesh_bundle.mesh.size_ind() as u64)];
+            device.logical.cmd_copy_buffer(*command_buffer, mesh_bundle.staging_ind.buffer, mesh_bundle.ind.buffer, &copy_region);
+        }
+
+        device.logical.end_command_buffer(*command_buffer).expect("Failed to end buffer.");
+    }
+}
+
 
 
 

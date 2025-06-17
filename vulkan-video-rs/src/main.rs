@@ -4,6 +4,7 @@ mod shader;
 mod mesh;
 mod vk_utils;
 mod shader_utils;
+mod devices;
 
 use mesh::{Mesh, Vertex};
 use vk_bundles::*;
@@ -12,7 +13,7 @@ use vk_utils::*;
 use ash::vk;
 use simple_logger::SimpleLogger;
 
-use vk_base::{VkBase, MAX_FRAMES_IN_FLIGHT};
+use vk_base::VkBase;
 
 use winit::{
     event::{Event, KeyEvent, WindowEvent},
@@ -29,8 +30,8 @@ struct App {
 
 impl App {
     fn new(window: Window) -> Self {
-        let base = VkBase::new(window);
-        let mesh_bundles = vec![create_vertex_object(&base.device, Mesh::triangle())];
+        let base = VkBase::new(window, 3);
+        let mesh_bundles = vec![create_mesh_bundle(&base.device, Mesh::triangle())];
 
         Self {
             base,
@@ -47,6 +48,13 @@ impl App {
             return;
         }
 
+        let command_buffer = self.base.spare_command.buffers.pop();
+        if command_buffer.is_none() {
+            return;
+        }
+
+        let command_buffers = [command_buffer.unwrap()];
+
         for mesh_bundle in self.mesh_bundles.iter_mut() {
             mesh_bundle.mesh.hue_shift();
             unsafe {
@@ -59,15 +67,10 @@ impl App {
                     .expect("Failed to map memory") as *mut u16;
                 data_ptr.copy_from_nonoverlapping(mesh_bundle.mesh.indices.as_ptr(), mesh_bundle.mesh.indices.len());
                 self.base.device.logical.unmap_memory(mesh_bundle.staging_ind.memory);
-
             }
         }
 
-        let command_buffers = if self.base.spare_command.buffers.len() == 0 {[
-            VkBase::create_copy_command_buffer(&self.base.device, self.base.spare_command.pool, &self.mesh_bundles)
-        ]} else {[
-            self.base.spare_command.buffers.remove(self.base.spare_command.buffers.len() - 1)
-        ]};
+        vk_utils::record_mesh_update(&self.base.device, &command_buffers[0], &self.mesh_bundles);
 
         let submit_info = vk::SubmitInfo::default()
             .command_buffers(&command_buffers);
@@ -109,13 +112,13 @@ impl App {
         let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
         let signal_semaphores = [self.base.sync_objects.render_finished_semaphores[self.base.current_frame]];
 
-        let command_buffers = [self.base.commands[self.base.current_frame].buffers[0]];
+        let command_buffers = [self.base.commands[image_index as usize].buffers[0]];
 
         unsafe {
             self.base.device.logical.reset_command_buffer(command_buffers[0], vk::CommandBufferResetFlags::empty()).expect("Failed to reset command buffer.");
         };
 
-        self.base.record_command_buffer(command_buffers[0], self.base.framebuffers[self.base.current_frame], &self.base.graphics_pipeline, &self.mesh_bundles);
+        self.base.record_command_buffer(command_buffers[0], self.base.framebuffers[image_index as usize], &self.base.graphics_pipeline, &self.mesh_bundles);
 
 
         let submit_infos = [
@@ -151,7 +154,7 @@ impl App {
             },
         };
 
-        self.base.current_frame = (self.base.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
+        self.base.current_frame = (self.base.current_frame + 1) % self.base.max_in_flight;
 
         if is_resized {
             self.base.is_framebuffer_resized = false;
@@ -203,6 +206,10 @@ impl App {
 impl Drop for App {
     fn drop(&mut self) {
         unsafe {
+
+            let _ = self.base.device.logical.device_wait_idle();
+
+
             for mesh in self.mesh_bundles.iter() {
                 self.base.device.logical.destroy_buffer(mesh.vbo.buffer, None);
                 self.base.device.logical.free_memory(mesh.vbo.memory, None);

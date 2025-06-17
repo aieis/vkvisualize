@@ -10,8 +10,6 @@ use crate::shader;
 use ash::vk;
 use winit::{raw_window_handle::{HasDisplayHandle, HasWindowHandle}, window::Window};
 
-pub const MAX_FRAMES_IN_FLIGHT: usize = 3;
-
 pub struct VkBase {
     pub _entry: ash::Entry,
     pub instance: ash::Instance,
@@ -31,10 +29,11 @@ pub struct VkBase {
     pub current_frame: usize,
     pub is_framebuffer_resized: bool,
     pub window: Window,
+    pub max_in_flight: usize,
 }
 
 impl VkBase {
-    pub fn new(window: Window) -> Self {
+    pub fn new(window: Window, max_in_flight: usize) -> Self {
         let (entry, instance) = VkBase::create_instance(&window);
         let (debug_utils_loader, debug_messenger) = VkBase::setup_validation(&entry, &instance);
 
@@ -42,12 +41,14 @@ impl VkBase {
         let device = VkBase::select_phsyical_device(&instance, &surface);
         let swapchain = VkBase::create_swapchain(&instance, &device, &surface, &window);
         let image_views = VkBase::create_image_views(&device, &swapchain);
+        let max_in_flight = if image_views.len() < max_in_flight { image_views.len() } else { max_in_flight };
 	let render_pass = VkBase::create_render_pass(&device, &swapchain);
 	let graphics_pipeline = VkBase::create_graphics_pipeline(&device, &swapchain, &render_pass);
 	let framebuffers = VkBase::create_framebuffers(&device, &render_pass, &image_views, &swapchain);
-	let commands = VkBase::create_command_pools(&device, MAX_FRAMES_IN_FLIGHT, 1);
-        let spare_command = VkBase::create_command_pools(&device, 1, 0).remove(0);
-        let sync_objects = VkBase::create_sync_objects(&device);
+	let commands = VkBase::create_command_pools(&device, max_in_flight, 1);
+        let spare_command = VkBase::create_command_pools(&device, 1, max_in_flight).remove(0);
+        let sync_objects = VkBase::create_sync_objects(&device, max_in_flight);
+
 
         Self {
             _entry: entry,
@@ -72,6 +73,7 @@ impl VkBase {
             is_framebuffer_resized: false,
 
             window,
+            max_in_flight
         }
     }
 
@@ -117,6 +119,7 @@ impl VkBase {
 	self.render_pass = VkBase::create_render_pass(&self.device, &self.swapchain);
 	self.graphics_pipeline = VkBase::create_graphics_pipeline(&self.device, &self.swapchain, &self.render_pass);
 	self.framebuffers = VkBase::create_framebuffers(&self.device, &self.render_pass, &self.image_views, &self.swapchain);
+        self.max_in_flight = if self.image_views.len() < self.max_in_flight { self.image_views.len() } else { self.max_in_flight };
     }
 
     pub fn cleanup_swapchain(&self) {
@@ -572,38 +575,7 @@ impl VkBase {
         commands
     }
 
-    pub fn create_copy_command_buffer(device: &DeviceBundle, command_pool: vk::CommandPool, mesh_bundles: &[MeshBundle]) -> vk::CommandBuffer {
-
-        let command_buffer_allocate_info = vk::CommandBufferAllocateInfo::default()
-	    .command_buffer_count(1)
-            .command_pool(command_pool)
-            .level(vk::CommandBufferLevel::PRIMARY);
-
-        let command_buffer = unsafe {
-            device.logical.allocate_command_buffers(&command_buffer_allocate_info).expect("Failed to allocate Command Buffers!")[0]
-        };
-
-        let command_buffer_begin_info =  vk::CommandBufferBeginInfo::default()
-            .flags(vk::CommandBufferUsageFlags::SIMULTANEOUS_USE);
-
-        unsafe {
-            device.logical.begin_command_buffer(command_buffer, &command_buffer_begin_info).expect("Failed to begin buffer.");
-
-            for mesh_bundle in mesh_bundles {
-                let copy_region = [ vk::BufferCopy::default().size(mesh_bundle.mesh.size() as u64)];
-                device.logical.cmd_copy_buffer(command_buffer, mesh_bundle.staging.buffer, mesh_bundle.vbo.buffer, &copy_region);
-
-                let copy_region = [ vk::BufferCopy::default().size(mesh_bundle.mesh.size_ind() as u64)];
-                device.logical.cmd_copy_buffer(command_buffer, mesh_bundle.staging_ind.buffer, mesh_bundle.ind.buffer, &copy_region);
-            }
-
-            device.logical.end_command_buffer(command_buffer).expect("Failed to end buffer.");
-        }
-
-        command_buffer
-    }
-
-    pub fn create_sync_objects(device: &DeviceBundle) -> SyncObjectsBundle {
+    pub fn create_sync_objects(device: &DeviceBundle, num: usize) -> SyncObjectsBundle {
         let mut sync_objects = SyncObjectsBundle {
             image_available_semaphores: vec![],
             render_finished_semaphores: vec![],
@@ -617,7 +589,7 @@ impl VkBase {
         let fence_create_info = vk::FenceCreateInfo::default()
             .flags(vk::FenceCreateFlags::SIGNALED);
 
-        for _ in 0..MAX_FRAMES_IN_FLIGHT {
+        for _ in 0..num {
             unsafe {
                 let image_available_semaphore = device.logical.create_semaphore(&semaphore_create_info, None)
                     .expect("Failed to create Semaphore Object!");
@@ -673,7 +645,7 @@ impl Drop for VkBase {
             let _ = self.device.logical.device_wait_idle();
             self.cleanup_in_flight_buffers();
 
-            for i in 0..MAX_FRAMES_IN_FLIGHT {
+            for i in 0..self.sync_objects.image_available_semaphores.len() {
                 self.device.logical.destroy_semaphore(self.sync_objects.image_available_semaphores[i], None);
                 self.device.logical.destroy_semaphore(self.sync_objects.render_finished_semaphores[i], None);
                 self.device.logical.destroy_fence(self.sync_objects.in_flight_fences[i], None);
