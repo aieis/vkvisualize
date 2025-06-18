@@ -6,7 +6,7 @@ mod vk_utils;
 mod shader_utils;
 mod devices;
 
-use mesh::{Mesh, Vertex};
+use mesh::{Rect, Vertex};
 use vk_bundles::*;
 use vk_utils::*;
 
@@ -34,7 +34,12 @@ struct App {
 impl App {
     fn new(window: Window) -> Self {
         let base = VkBase::new(window, 3);
-        let mesh_bundles = vec![create_mesh_bundle(&base.device, Mesh::triangle())];
+
+        let mesh_bundles = vec![
+            create_mesh_bundle(&base.device, Rect::new(-0.9, -0.9, 0.5, 0.5, [1.0, 0.0, 0.0])),
+            create_mesh_bundle(&base.device, Rect::new(0.0, 0.0, 0.5, 0.5, [0.0, 0.0, 1.0])),
+        ];
+
         let graphics_pipelines = vec![base.create_graphics_pipeline(Box::from(make_shader!("triangle")))];
 
         Self {
@@ -61,9 +66,8 @@ impl App {
         let command_buffers = [command_buffer.unwrap()];
 
         for mesh_bundle in self.mesh_bundles.iter_mut() {
-            mesh_bundle.mesh.hue_shift();
             unsafe {
-                let data_ptr = self.base.device.logical.map_memory(mesh_bundle.staging.memory, 0, mesh_bundle.mesh.size() as u64, vk::MemoryMapFlags::empty())
+                let data_ptr = self.base.device.logical.map_memory(mesh_bundle.staging.memory, 0, mesh_bundle.mesh.size_vrt() as u64, vk::MemoryMapFlags::empty())
                     .expect("Failed to map memory") as *mut Vertex;
                 data_ptr.copy_from_nonoverlapping(mesh_bundle.mesh.vertices.as_ptr(), mesh_bundle.mesh.vertices.len());
                 self.base.device.logical.unmap_memory(mesh_bundle.staging.memory);

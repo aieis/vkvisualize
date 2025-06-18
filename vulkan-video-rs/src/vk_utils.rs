@@ -2,7 +2,7 @@ use anyhow::{Result, anyhow};
 
 use ash::vk;
 
-use crate::{mesh::Mesh, BufferBundle, DeviceBundle, MeshBundle};
+use crate::{mesh::Rect, BufferBundle, DeviceBundle, MeshBundle};
 use crate::vk_utils;
 
 
@@ -30,8 +30,8 @@ pub fn create_buffer(device: &DeviceBundle, size: u64, usage: vk::BufferUsageFla
 }
 
 
-pub fn create_mesh_bundle(device: &DeviceBundle, mesh: Mesh) -> MeshBundle {
-    let size = mesh.size() as u64;
+pub fn create_mesh_bundle(device: &DeviceBundle, mesh: Rect) -> MeshBundle {
+    let size = mesh.size_vrt() as u64;
 
     let required_memory_flags = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
     let usage = vk::BufferUsageFlags::TRANSFER_SRC;
@@ -63,7 +63,7 @@ pub fn record_mesh_update(device: &DeviceBundle, command_buffer: &vk::CommandBuf
         device.logical.begin_command_buffer(*command_buffer, &command_buffer_begin_info).expect("Failed to begin buffer.");
 
         for mesh_bundle in mesh_bundles {
-            let copy_region = [ vk::BufferCopy::default().size(mesh_bundle.mesh.size() as u64)];
+            let copy_region = [ vk::BufferCopy::default().size(mesh_bundle.mesh.size_vrt() as u64)];
             device.logical.cmd_copy_buffer(*command_buffer, mesh_bundle.staging.buffer, mesh_bundle.vbo.buffer, &copy_region);
 
             let copy_region = [ vk::BufferCopy::default().size(mesh_bundle.mesh.size_ind() as u64)];

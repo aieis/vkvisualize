@@ -1,7 +1,7 @@
 use ash::vk;
 use ash::khr;
 
-use crate::mesh::Mesh;
+use crate::mesh::Rect;
 use crate::shader::Shader;
 
 pub struct SurfaceBundle {
@@ -39,7 +39,7 @@ pub struct SyncObjectsBundle {
 }
 
 pub struct MeshBundle {
-    pub mesh: Mesh,
+    pub mesh: Rect,
     pub vbo: BufferBundle,
     pub staging: BufferBundle,
     pub staging_ind: BufferBundle,

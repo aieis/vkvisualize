@@ -2,7 +2,7 @@ use std::ffi::{c_char, c_void, CStr, CString};
 
 use ash::{ext::debug_utils, khr};
 
-use crate::mesh::Mesh;
+use crate::mesh::Rect;
 use crate::shader::Shader;
 use crate::vk_bundles::*;
 
@@ -104,9 +104,11 @@ impl VkBase {
         let command_buffer = *command_buffer;
         unsafe {
             self.device.logical.cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, graphics_pipeline.graphics);
-            self.device.logical.cmd_bind_vertex_buffers(command_buffer, 0, &[mesh_bundles[0].vbo.buffer], &[0]);
-            self.device.logical.cmd_bind_index_buffer(command_buffer, mesh_bundles[0].ind.buffer, 0, vk::IndexType::UINT16);
-            self.device.logical.cmd_draw_indexed(command_buffer, mesh_bundles[0].mesh.indices.len() as u32, 1, 0, 0, 0);
+            for i in 0..mesh_bundles.len() {
+                self.device.logical.cmd_bind_vertex_buffers(command_buffer, 0, &[mesh_bundles[i].vbo.buffer], &[0]);
+                self.device.logical.cmd_bind_index_buffer(command_buffer, mesh_bundles[i].ind.buffer, 0, vk::IndexType::UINT16);
+                self.device.logical.cmd_draw_indexed(command_buffer, mesh_bundles[i].mesh.indices.len() as u32, 1, 0, 0, 0);
+            }
         }
     }
 
@@ -114,7 +116,7 @@ impl VkBase {
         let command_buffer = *command_buffer;
         unsafe {
             self.device.logical.cmd_end_render_pass(command_buffer);
-            self.device.logical.end_command_buffer(command_buffer);
+            let _ = self.device.logical.end_command_buffer(command_buffer);
         }
     }
     pub fn create_graphics_pipeline(&self, shader: Box<dyn Shader>) -> GraphicsPipelineBundle {
@@ -397,8 +399,8 @@ impl VkBase {
 
 	let shader_stage_create_infos = [vertex_shader_stage, fragment_shader_stage];
 
-        let bindings = Mesh::get_binding_descriptions();
-        let attributes = Mesh::get_attribute_descriptions();
+        let bindings = Rect::get_binding_descriptions();
+        let attributes = Rect::get_attribute_descriptions();
         let vertex_input_state_info = vk::PipelineVertexInputStateCreateInfo::default()
             .vertex_binding_descriptions(&bindings)
             .vertex_attribute_descriptions(&attributes);
@@ -524,8 +526,8 @@ impl VkBase {
 
 	let shader_stage_create_infos = [vertex_shader_stage, fragment_shader_stage];
 
-        let bindings = Mesh::get_binding_descriptions();
-        let attributes = Mesh::get_attribute_descriptions();
+        let bindings = Rect::get_binding_descriptions();
+        let attributes = Rect::get_attribute_descriptions();
         let vertex_input_state_info = vk::PipelineVertexInputStateCreateInfo::default()
             .vertex_binding_descriptions(&bindings)
             .vertex_attribute_descriptions(&attributes);
