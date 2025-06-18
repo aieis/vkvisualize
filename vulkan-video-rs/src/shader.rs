@@ -27,7 +27,6 @@ pub struct ShaderComp {
     pub fragment_code: Vec<u8>,
 }
 
-
 pub struct ShaderFile {
     pub id: String,
     pub vertex_path: String,

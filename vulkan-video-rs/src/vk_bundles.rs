@@ -41,9 +41,9 @@ pub struct SyncObjectsBundle {
 pub struct MeshBundle {
     pub mesh: Rect,
     pub vbo: BufferBundle,
-    pub staging: BufferBundle,
-    pub staging_ind: BufferBundle,
+    pub col: BufferBundle,
     pub ind: BufferBundle,
+    pub staging: BufferBundle,
 }
 
 pub struct BufferBundle {

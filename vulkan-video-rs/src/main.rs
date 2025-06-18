@@ -5,8 +5,9 @@ mod mesh;
 mod vk_utils;
 mod shader_utils;
 mod devices;
+mod drawable;
 
-use mesh::{Rect, Vertex};
+use mesh::Rect;
 use vk_bundles::*;
 use vk_utils::*;
 
@@ -66,16 +67,22 @@ impl App {
         let command_buffers = [command_buffer.unwrap()];
 
         for mesh_bundle in self.mesh_bundles.iter_mut() {
+            let size_vrt = mesh_bundle.mesh.size_vrt() as u64;
+            let size_col = mesh_bundle.mesh.size_col() as u64;
+            let size_ind = mesh_bundle.mesh.size_ind() as u64;
+
             unsafe {
-                let data_ptr = self.base.device.logical.map_memory(mesh_bundle.staging.memory, 0, mesh_bundle.mesh.size_vrt() as u64, vk::MemoryMapFlags::empty())
-                    .expect("Failed to map memory") as *mut Vertex;
+                let data_ptr = self.base.device.logical.map_memory(mesh_bundle.staging.memory, 0, size_vrt, vk::MemoryMapFlags::empty()).unwrap() as *mut [f32; 2];
                 data_ptr.copy_from_nonoverlapping(mesh_bundle.mesh.vertices.as_ptr(), mesh_bundle.mesh.vertices.len());
                 self.base.device.logical.unmap_memory(mesh_bundle.staging.memory);
 
-                let data_ptr = self.base.device.logical.map_memory(mesh_bundle.staging_ind.memory, 0, mesh_bundle.mesh.size_ind() as u64, vk::MemoryMapFlags::empty())
-                    .expect("Failed to map memory") as *mut u16;
+                let data_ptr = self.base.device.logical.map_memory(mesh_bundle.staging.memory, size_vrt, size_col, vk::MemoryMapFlags::empty()).unwrap() as *mut [f32; 3];
+                data_ptr.copy_from_nonoverlapping(mesh_bundle.mesh.colour.as_ptr(), mesh_bundle.mesh.colour.len());
+                self.base.device.logical.unmap_memory(mesh_bundle.staging.memory);
+
+                let data_ptr = self.base.device.logical.map_memory(mesh_bundle.staging.memory, size_vrt+size_col, size_ind, vk::MemoryMapFlags::empty()).unwrap() as *mut u16;
                 data_ptr.copy_from_nonoverlapping(mesh_bundle.mesh.indices.as_ptr(), mesh_bundle.mesh.indices.len());
-                self.base.device.logical.unmap_memory(mesh_bundle.staging_ind.memory);
+                self.base.device.logical.unmap_memory(mesh_bundle.staging.memory);
             }
         }
 
@@ -237,8 +244,8 @@ impl Drop for App {
                 self.base.device.logical.free_memory(mesh.vbo.memory, None);
                 self.base.device.logical.destroy_buffer(mesh.staging.buffer, None);
                 self.base.device.logical.free_memory(mesh.staging.memory, None);
-                self.base.device.logical.destroy_buffer(mesh.staging_ind.buffer, None);
-                self.base.device.logical.free_memory(mesh.staging_ind.memory, None);
+                self.base.device.logical.destroy_buffer(mesh.col.buffer, None);
+                self.base.device.logical.free_memory(mesh.col.memory, None);
                 self.base.device.logical.destroy_buffer(mesh.ind.buffer, None);
                 self.base.device.logical.free_memory(mesh.ind.memory, None);
             }

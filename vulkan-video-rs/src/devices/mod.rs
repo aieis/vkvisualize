@@ -1,1 +1,1 @@
-pub(crate) mod record_player;
+pub mod record_player;

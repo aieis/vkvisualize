@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 
+#[allow(unused)]
 pub struct RecordData {
     pub width: u32,
     pub height: u32,
@@ -8,6 +9,7 @@ pub struct RecordData {
     pub frame_data: Vec<u16>,
 }
 
+#[allow(unused)]
 pub struct RecordPlayer {
     pub record_data: RecordData,
     pub stream_pos: usize,
@@ -15,6 +17,7 @@ pub struct RecordPlayer {
     pub last_frame_time: f32,
 }
 
+#[allow(unused)]
 impl RecordPlayer {
     pub fn new(file_path: &str) -> Result<RecordPlayer> {
         let record_data =  RecordData::from_file(file_path)?;
@@ -30,7 +33,6 @@ impl RecordPlayer {
 }
 
 impl RecordData {
-
     pub fn get_frame(&self, frame_num: usize) -> Vec<u16> {
         if frame_num > self.frame_count {
             eprintln!("Attempt to read frame {} from total frames {}", frame_num, self.frame_count);

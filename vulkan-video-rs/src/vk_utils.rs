@@ -5,6 +5,10 @@ use ash::vk;
 use crate::{mesh::Rect, BufferBundle, DeviceBundle, MeshBundle};
 use crate::vk_utils;
 
+macro_rules! max {
+    ($x: expr) => ($x);
+    ($x: expr, $($z: expr),+) => (std::cmp::max($x, max!($($z),*)));
+}
 
 pub fn create_buffer(device: &DeviceBundle, size: u64, usage: vk::BufferUsageFlags, properties: vk::MemoryPropertyFlags) -> Result<BufferBundle>{
 
@@ -31,26 +35,29 @@ pub fn create_buffer(device: &DeviceBundle, size: u64, usage: vk::BufferUsageFla
 
 
 pub fn create_mesh_bundle(device: &DeviceBundle, mesh: Rect) -> MeshBundle {
-    let size = mesh.size_vrt() as u64;
+    let size_vrt = mesh.size_vrt() as u64;
+    let size_col = mesh.size_col() as u64;
+    let size_ind = mesh.size_ind() as u64;
+
+    let size_staging = size_vrt + size_col + size_ind;
 
     let required_memory_flags = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
     let usage = vk::BufferUsageFlags::TRANSFER_SRC;
-    let staging = vk_utils::create_buffer(device, size, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+    let staging = vk_utils::create_buffer(device, size_staging, usage, required_memory_flags).expect("Failed to create vertex buffer.");
 
     let required_memory_flags = vk::MemoryPropertyFlags::DEVICE_LOCAL;
     let usage = vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::VERTEX_BUFFER;
-    let vbo = vk_utils::create_buffer(device, size, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+    let vbo = vk_utils::create_buffer(device, size_vrt, usage, required_memory_flags).expect("Failed to create vertex buffer.");
 
-    let size = mesh.size_ind() as u64;
-    let required_memory_flags = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
-    let usage = vk::BufferUsageFlags::TRANSFER_SRC;
-    let staging_ind = vk_utils::create_buffer(device, size, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+    let required_memory_flags = vk::MemoryPropertyFlags::DEVICE_LOCAL;
+    let usage = vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::VERTEX_BUFFER;
+    let col = vk_utils::create_buffer(device, size_col, usage, required_memory_flags).expect("Failed to create vertex buffer.");
 
     let required_memory_flags = vk::MemoryPropertyFlags::DEVICE_LOCAL;
     let usage = vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::INDEX_BUFFER;
-    let ind = vk_utils::create_buffer(device, size, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+    let ind = vk_utils::create_buffer(device, size_ind, usage, required_memory_flags).expect("Failed to create vertex buffer.");
 
-    MeshBundle { mesh, vbo, staging, staging_ind, ind}
+    MeshBundle { mesh, vbo, col, ind, staging}
 }
 
 
@@ -63,11 +70,31 @@ pub fn record_mesh_update(device: &DeviceBundle, command_buffer: &vk::CommandBuf
         device.logical.begin_command_buffer(*command_buffer, &command_buffer_begin_info).expect("Failed to begin buffer.");
 
         for mesh_bundle in mesh_bundles {
-            let copy_region = [ vk::BufferCopy::default().size(mesh_bundle.mesh.size_vrt() as u64)];
+            let size_vrt = mesh_bundle.mesh.size_vrt() as u64;
+            let size_col = mesh_bundle.mesh.size_col() as u64;
+            let size_ind = mesh_bundle.mesh.size_ind() as u64;
+
+            let copy_region = [
+                vk::BufferCopy::default().size(size_vrt)
+            ];
+
             device.logical.cmd_copy_buffer(*command_buffer, mesh_bundle.staging.buffer, mesh_bundle.vbo.buffer, &copy_region);
 
-            let copy_region = [ vk::BufferCopy::default().size(mesh_bundle.mesh.size_ind() as u64)];
-            device.logical.cmd_copy_buffer(*command_buffer, mesh_bundle.staging_ind.buffer, mesh_bundle.ind.buffer, &copy_region);
+            let copy_region = [
+                vk::BufferCopy::default()
+                    .src_offset(size_vrt)
+                    .size(size_col)
+            ];
+
+            device.logical.cmd_copy_buffer(*command_buffer, mesh_bundle.staging.buffer, mesh_bundle.col.buffer, &copy_region);
+
+            let copy_region = [
+                vk::BufferCopy::default()
+                    .src_offset(size_vrt+size_col)
+                    .size(size_ind as u64)
+            ];
+
+            device.logical.cmd_copy_buffer(*command_buffer, mesh_bundle.staging.buffer, mesh_bundle.ind.buffer, &copy_region);
         }
 
         device.logical.end_command_buffer(*command_buffer).expect("Failed to end buffer.");
