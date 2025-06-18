@@ -2,6 +2,7 @@ use ash::vk;
 use ash::khr;
 
 use crate::mesh::Mesh;
+use crate::shader::Shader;
 
 pub struct SurfaceBundle {
     pub surface: vk::SurfaceKHR,
@@ -25,6 +26,7 @@ pub struct SwapchainBundle {
 }
 
 pub struct GraphicsPipelineBundle {
+    pub shader: Box<dyn Shader>,
     pub graphics: vk::Pipeline,
     pub layout: vk::PipelineLayout,
 }

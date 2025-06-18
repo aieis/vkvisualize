@@ -1,11 +1,10 @@
-
 use std::ffi::{c_char, c_void, CStr, CString};
 
 use ash::{ext::debug_utils, khr};
 
 use crate::mesh::Mesh;
+use crate::shader::Shader;
 use crate::vk_bundles::*;
-use crate::shader;
 
 use ash::vk;
 use winit::{raw_window_handle::{HasDisplayHandle, HasWindowHandle}, window::Window};
@@ -20,7 +19,6 @@ pub struct VkBase {
     pub swapchain: SwapchainBundle,
     pub image_views: Vec<vk::ImageView>,
     pub render_pass: vk::RenderPass,
-    pub graphics_pipeline: GraphicsPipelineBundle,
     pub framebuffers: Vec<vk::Framebuffer>,
     pub commands: Vec<CommandBundle>,
     pub spare_command: CommandBundle,
@@ -43,7 +41,6 @@ impl VkBase {
         let image_views = VkBase::create_image_views(&device, &swapchain);
         let max_in_flight = if image_views.len() < max_in_flight { image_views.len() } else { max_in_flight };
 	let render_pass = VkBase::create_render_pass(&device, &swapchain);
-	let graphics_pipeline = VkBase::create_graphics_pipeline(&device, &swapchain, &render_pass);
 	let framebuffers = VkBase::create_framebuffers(&device, &render_pass, &image_views, &swapchain);
 	let commands = VkBase::create_command_pools(&device, max_in_flight, 1);
         let spare_command = VkBase::create_command_pools(&device, 1, max_in_flight).remove(0);
@@ -62,7 +59,7 @@ impl VkBase {
             swapchain,
             image_views,
 	    render_pass,
-	    graphics_pipeline,
+
 	    framebuffers,
             commands,
             spare_command,
@@ -77,12 +74,12 @@ impl VkBase {
         }
     }
 
-    pub fn record_command_buffer(&self, command_buffer: vk::CommandBuffer, framebuffer: vk::Framebuffer, graphics_pipeline: &GraphicsPipelineBundle, mesh_bundles: &[MeshBundle])  {
+    pub fn begin_renderpass_command_buffer(&self, command_buffer: &vk::CommandBuffer, framebuffer: &vk::Framebuffer) {
         let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
 	    .flags(vk::CommandBufferUsageFlags::SIMULTANEOUS_USE);
 
         unsafe {
-            self.device.logical.begin_command_buffer(command_buffer, &command_buffer_begin_info)
+            self.device.logical.begin_command_buffer(*command_buffer, &command_buffer_begin_info)
                 .expect("Failed to begin recording Command Buffer at beginning!");
         }
 
@@ -94,31 +91,48 @@ impl VkBase {
 
         let render_pass_begin_info = vk::RenderPassBeginInfo::default()
             .render_pass(self.render_pass)
-            .framebuffer(framebuffer)
+            .framebuffer(*framebuffer)
             .render_area(vk::Rect2D { offset: vk::Offset2D { x: 0, y: 0 }, extent: self.swapchain.extent})
             .clear_values(&clear_values);
 
         unsafe {
-            self.device.logical.cmd_begin_render_pass(command_buffer, &render_pass_begin_info, vk::SubpassContents::INLINE);
+            self.device.logical.cmd_begin_render_pass(*command_buffer, &render_pass_begin_info, vk::SubpassContents::INLINE);
+        }
+    }
+
+    pub fn record_command_buffer(&self, command_buffer: &vk::CommandBuffer, graphics_pipeline: &GraphicsPipelineBundle, mesh_bundles: &[MeshBundle])  {
+        let command_buffer = *command_buffer;
+        unsafe {
             self.device.logical.cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, graphics_pipeline.graphics);
             self.device.logical.cmd_bind_vertex_buffers(command_buffer, 0, &[mesh_bundles[0].vbo.buffer], &[0]);
             self.device.logical.cmd_bind_index_buffer(command_buffer, mesh_bundles[0].ind.buffer, 0, vk::IndexType::UINT16);
             self.device.logical.cmd_draw_indexed(command_buffer, mesh_bundles[0].mesh.indices.len() as u32, 1, 0, 0, 0);
-            self.device.logical.cmd_end_render_pass(command_buffer);
-	    self.device.logical.end_command_buffer(command_buffer).expect("Failed to record Command Buffer at Ending!");
         }
+    }
+
+    pub fn end_command_buffer(&self, command_buffer: &vk::CommandBuffer) {
+        let command_buffer = *command_buffer;
+        unsafe {
+            self.device.logical.cmd_end_render_pass(command_buffer);
+            self.device.logical.end_command_buffer(command_buffer);
+        }
+    }
+    pub fn create_graphics_pipeline(&self, shader: Box<dyn Shader>) -> GraphicsPipelineBundle {
+        return VkBase::create_graphics_pipeline_impl(&self.device, &self.swapchain, &self.render_pass, shader);
+    }
+
+    pub fn recreate_graphics_pipeline(&self, graphics_pipeline: &mut GraphicsPipelineBundle) {
+        return VkBase::recreate_graphics_pipeline_impl(&self.device, &self.swapchain, &self.render_pass, graphics_pipeline);
     }
 
     pub fn recreate_swapchain(&mut self) {
         // parameters -------------
         unsafe { self.device.logical.device_wait_idle().expect("Failed to wait device idle!") };
         self.cleanup_swapchain();
-
         self.swapchain = VkBase::create_swapchain(&self.instance, &self.device, &self.surface, &self.window);
         self.image_views = VkBase::create_image_views(&self.device, &self.swapchain);
 	self.render_pass = VkBase::create_render_pass(&self.device, &self.swapchain);
-	self.graphics_pipeline = VkBase::create_graphics_pipeline(&self.device, &self.swapchain, &self.render_pass);
-	self.framebuffers = VkBase::create_framebuffers(&self.device, &self.render_pass, &self.image_views, &self.swapchain);
+        self.framebuffers = VkBase::create_framebuffers(&self.device, &self.render_pass, &self.image_views, &self.swapchain);
         self.max_in_flight = if self.image_views.len() < self.max_in_flight { self.image_views.len() } else { self.max_in_flight };
     }
 
@@ -127,12 +141,12 @@ impl VkBase {
             for &framebuffer in self.framebuffers.iter() {
                 self.device.logical.destroy_framebuffer(framebuffer, None);
             }
-            self.device.logical.destroy_pipeline(self.graphics_pipeline.graphics, None);
-            self.device.logical.destroy_pipeline_layout(self.graphics_pipeline.layout, None);
+
             self.device.logical.destroy_render_pass(self.render_pass, None);
             for &image_view in self.image_views.iter() {
                 self.device.logical.destroy_image_view(image_view, None);
             }
+
             self.swapchain.loader.destroy_swapchain(self.swapchain.swapchain, None);
         }
     }
@@ -368,18 +382,18 @@ impl VkBase {
     }
 
     /* Setup the graphics pipeline */
-    pub fn create_graphics_pipeline(device: &DeviceBundle, swapchain: &SwapchainBundle, renderpass: &vk::RenderPass) -> GraphicsPipelineBundle {
-	let shader = shader::Shader::new(&device.logical, "assets/shaders/triangle.vert.spv", "assets/shaders/triangle.frag.spv");
+    pub fn create_graphics_pipeline_impl(device: &DeviceBundle, swapchain: &SwapchainBundle, renderpass: &vk::RenderPass, shader: Box<dyn Shader>) -> GraphicsPipelineBundle {
+	let (shader_vertex, shader_fragment) = shader.compile(&device.logical);
         let main_function_name = CString::new("main").unwrap(); // the beginning function name in shader code.
 	let vertex_shader_stage = vk::PipelineShaderStageCreateInfo::default()
 	    .name(&main_function_name)
 	    .stage(vk::ShaderStageFlags::VERTEX)
-	    .module(shader.vertex);
+	    .module(shader_vertex);
 
 	let fragment_shader_stage = vk::PipelineShaderStageCreateInfo::default()
 	    .name(&main_function_name)
 	    .stage(vk::ShaderStageFlags::FRAGMENT)
-	    .module(shader.fragment);
+	    .module(shader_fragment);
 
 	let shader_stage_create_infos = [vertex_shader_stage, fragment_shader_stage];
 
@@ -483,15 +497,140 @@ impl VkBase {
         };
 
         unsafe {
-            device.logical.destroy_shader_module(shader.vertex, None);
-            device.logical.destroy_shader_module(shader.fragment, None);
+            device.logical.destroy_shader_module(shader_vertex, None);
+            device.logical.destroy_shader_module(shader_fragment, None);
         }
 
 
-	GraphicsPipelineBundle {
+        GraphicsPipelineBundle {
+            shader,
 	    graphics: graphics_pipelines[0],
 	    layout: pipeline_layout
 	}
+    }
+
+    pub fn recreate_graphics_pipeline_impl(device: &DeviceBundle, swapchain: &SwapchainBundle, renderpass: &vk::RenderPass, graphics_pipeline: &mut GraphicsPipelineBundle) {
+	let (shader_vertex, shader_fragment) = graphics_pipeline.shader.compile(&device.logical);
+        let main_function_name = CString::new("main").unwrap(); // the beginning function name in shader code.
+	let vertex_shader_stage = vk::PipelineShaderStageCreateInfo::default()
+	    .name(&main_function_name)
+	    .stage(vk::ShaderStageFlags::VERTEX)
+	    .module(shader_vertex);
+
+	let fragment_shader_stage = vk::PipelineShaderStageCreateInfo::default()
+	    .name(&main_function_name)
+	    .stage(vk::ShaderStageFlags::FRAGMENT)
+	    .module(shader_fragment);
+
+	let shader_stage_create_infos = [vertex_shader_stage, fragment_shader_stage];
+
+        let bindings = Mesh::get_binding_descriptions();
+        let attributes = Mesh::get_attribute_descriptions();
+        let vertex_input_state_info = vk::PipelineVertexInputStateCreateInfo::default()
+            .vertex_binding_descriptions(&bindings)
+            .vertex_attribute_descriptions(&attributes);
+
+	let vertex_input_assembly_state_info = vk::PipelineInputAssemblyStateCreateInfo::default()
+	    .topology(vk::PrimitiveTopology::TRIANGLE_LIST)
+	    .primitive_restart_enable(false);
+
+	let viewports = [vk::Viewport {
+	    x: 0.0,
+	    y: 0.0,
+	    width: swapchain.extent.width as f32,
+	    height: swapchain.extent.height as f32,
+	    min_depth: 0.0,
+	    max_depth: 1.0
+	}];
+
+	let scissors = [vk::Rect2D {
+	    offset: vk::Offset2D {x: 0, y: 0},
+	    extent: swapchain.extent
+	}];
+
+	// let dynamic_states = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
+	let dynamic_state_info = vk::PipelineDynamicStateCreateInfo::default();
+	//.dynamic_states(&dynamic_states);
+
+	let viewport_state_info = vk::PipelineViewportStateCreateInfo::default()
+	    .viewports(&viewports)
+	    .scissors(&scissors);
+
+	let rasterization_info = vk::PipelineRasterizationStateCreateInfo::default()
+	    .cull_mode(vk::CullModeFlags::BACK)
+	    .front_face(vk::FrontFace::CLOCKWISE)
+	    .polygon_mode(vk::PolygonMode::FILL)
+	    .depth_clamp_enable(false)
+	    .rasterizer_discard_enable(false)
+	    .line_width(1.0);
+
+	let multisample_state_info = vk::PipelineMultisampleStateCreateInfo::default()
+	    .rasterization_samples(vk::SampleCountFlags::TYPE_1);
+
+        let stencil_state = vk::StencilOpState {
+            fail_op: vk::StencilOp::KEEP,
+            pass_op: vk::StencilOp::KEEP,
+            depth_fail_op: vk::StencilOp::KEEP,
+            compare_op: vk::CompareOp::ALWAYS,
+            compare_mask: 0,
+            write_mask: 0,
+            reference: 0,
+        };
+
+        let depth_state_create_info = vk::PipelineDepthStencilStateCreateInfo::default()
+            .depth_compare_op(vk::CompareOp::LESS_OR_EQUAL)
+            .depth_bounds_test_enable(false)
+            .stencil_test_enable(false)
+            .front(stencil_state)
+            .back(stencil_state)
+            .max_depth_bounds(1.0)
+            .min_depth_bounds(0.0);
+
+
+        let color_blend_attachment_states = [vk::PipelineColorBlendAttachmentState {
+            blend_enable: 0,
+            src_color_blend_factor: vk::BlendFactor::SRC_COLOR,
+            dst_color_blend_factor: vk::BlendFactor::ONE_MINUS_DST_COLOR,
+            color_blend_op: vk::BlendOp::ADD,
+            src_alpha_blend_factor: vk::BlendFactor::ZERO,
+            dst_alpha_blend_factor: vk::BlendFactor::ZERO,
+            alpha_blend_op: vk::BlendOp::ADD,
+            color_write_mask: vk::ColorComponentFlags::RGBA,
+        }];
+
+	let color_blend_state = vk::PipelineColorBlendStateCreateInfo::default()
+            .logic_op(vk::LogicOp::CLEAR)
+            .attachments(&color_blend_attachment_states);
+
+	let layout_create_info = vk::PipelineLayoutCreateInfo::default();
+        let pipeline_layout = unsafe { device.logical.create_pipeline_layout(&layout_create_info, None).unwrap() };
+
+        let graphic_pipeline_infos = [vk::GraphicsPipelineCreateInfo::default()
+            .stages(&shader_stage_create_infos)
+            .vertex_input_state(&vertex_input_state_info)
+            .input_assembly_state(&vertex_input_assembly_state_info)
+            .viewport_state(&viewport_state_info)
+            .rasterization_state(&rasterization_info)
+            .multisample_state(&multisample_state_info)
+            .depth_stencil_state(&depth_state_create_info)
+            .color_blend_state(&color_blend_state)
+            .dynamic_state(&dynamic_state_info)
+            .layout(pipeline_layout)
+            .render_pass(*renderpass)];
+
+        let graphics_pipelines = unsafe {
+            device.logical.create_graphics_pipelines(vk::PipelineCache::null(), &graphic_pipeline_infos, None)
+                .expect("Failed to create Graphics Pipeline!.")
+        };
+
+        unsafe {
+            device.logical.destroy_shader_module(shader_vertex, None);
+            device.logical.destroy_shader_module(shader_fragment, None);
+        }
+
+
+        graphics_pipeline.graphics = graphics_pipelines[0];
+	graphics_pipeline.layout =  pipeline_layout;
     }
 
     pub fn create_render_pass(device: &DeviceBundle, swapchain: &SwapchainBundle) -> vk::RenderPass{

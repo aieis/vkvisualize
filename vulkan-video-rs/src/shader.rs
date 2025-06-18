@@ -1,42 +1,75 @@
 use ash::vk;
 
+fn compile_shader_modules(device: &ash::Device, vertex_code: &[u8], fragment_code: &[u8]) -> (vk::ShaderModule, vk::ShaderModule) {
+    let create_info = vk::ShaderModuleCreateInfo {
+	code_size: vertex_code.len(),
+        p_code: vertex_code.as_ptr() as *const u32,
+	..Default::default()
+    };
 
-pub struct Shader {
-    _vertex_path: String,
-    pub vertex: vk::ShaderModule,
+    let vertex = unsafe { device.create_shader_module(&create_info, None).unwrap() };
 
-    _fragment_path: String,
-    pub fragment: vk::ShaderModule
+    let create_info = vk::ShaderModuleCreateInfo {
+	code_size: fragment_code.len(),
+        p_code: fragment_code.as_ptr() as *const u32,
+	..Default::default()
+    };
+
+    let fragment = unsafe { device.create_shader_module(&create_info, None).unwrap() };
+
+    (vertex, fragment)
 }
 
 
-impl Shader {
-    pub fn new(device: &ash::Device, vertex_path: &str, fragment_path: &str) -> Self {
-	let code = std::fs::read(vertex_path).unwrap();
-	let create_info = vk::ShaderModuleCreateInfo {
-	    code_size: code.len(),
-            p_code: code.as_ptr() as *const u32,
-	    ..Default::default()
-	};
+pub struct ShaderComp {
+    pub id: String,
+    pub vertex_code: Vec<u8>,
+    pub fragment_code: Vec<u8>,
+}
 
-	let vertex = unsafe { device.create_shader_module(&create_info, None).unwrap() };
 
-	let code = std::fs::read(fragment_path).unwrap();
-	let create_info = vk::ShaderModuleCreateInfo {
-	    code_size: code.len(),
-            p_code: code.as_ptr() as *const u32,
-	    ..Default::default()
-	};
+pub struct ShaderFile {
+    pub id: String,
+    pub vertex_path: String,
+    pub fragment_path: String
+}
 
-	let fragment = unsafe { device.create_shader_module(&create_info, None).unwrap() };
 
-	Self {
-	    _vertex_path: vertex_path.into(),
-	    vertex,
+pub trait Shader {
+    fn compile(&self, device: &ash::Device) -> (vk::ShaderModule, vk::ShaderModule);
 
-	    _fragment_path: fragment_path.into(),
-	    fragment
-	}
+    /* TODO: Replace string ids with a number */
+    fn id(&self) -> String;
+}
 
+impl Shader for ShaderFile {
+    fn compile(&self, device: &ash::Device) -> (vk::ShaderModule, vk::ShaderModule) {
+        let vertex_code = std::fs::read(&self.vertex_path).unwrap();
+	let fragment_code = std::fs::read(&self.fragment_path).unwrap();
+        return compile_shader_modules(device, &vertex_code, &fragment_code);
+    }
+
+    fn id(&self) -> String {
+        return self.vertex_path.clone();
+    }
+}
+
+impl Shader for ShaderComp {
+    fn compile(&self, device: &ash::Device) -> (vk::ShaderModule, vk::ShaderModule) {
+        return compile_shader_modules(device, &self.vertex_code, &self.fragment_code);
+    }
+
+    fn id(&self) -> String { self.id.clone() }
+}
+
+#[macro_export]
+macro_rules! make_shader {
+    ($x: literal) => {
+        {
+            let id = concat!("Comp_", $x).to_string();
+            let vertex_code = include_bytes!(concat!("../assets/shaders/", $x, ".vert.spv")).to_vec();
+            let fragment_code = include_bytes!(concat!("../assets/shaders/", $x, ".frag.spv")).to_vec();
+            ShaderComp { id, vertex_code, fragment_code  }
+        }
     }
 }

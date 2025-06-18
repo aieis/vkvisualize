@@ -15,6 +15,8 @@ use simple_logger::SimpleLogger;
 
 use vk_base::VkBase;
 
+use shader::ShaderComp;
+
 use winit::{
     event::{Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
@@ -25,6 +27,7 @@ use winit::{
 struct App {
     base: VkBase,
     mesh_bundles: Vec<MeshBundle>,
+    graphics_pipelines: Vec<GraphicsPipelineBundle>,
     close: bool,
 }
 
@@ -32,10 +35,12 @@ impl App {
     fn new(window: Window) -> Self {
         let base = VkBase::new(window, 3);
         let mesh_bundles = vec![create_mesh_bundle(&base.device, Mesh::triangle())];
+        let graphics_pipelines = vec![base.create_graphics_pipeline(Box::from(make_shader!("triangle")))];
 
         Self {
             base,
             mesh_bundles,
+            graphics_pipelines,
             close: false
         }
     }
@@ -100,7 +105,7 @@ impl App {
                 Ok(image_index) => image_index,
                 Err(vk_result) => match vk_result {
                     vk::Result::ERROR_OUT_OF_DATE_KHR => {
-                        self.base.recreate_swapchain();
+                        self.recreate_swapchain_and_pipelines();
                         return;
                     }
                     _ => panic!("Failed to acquire swapchain image!"),
@@ -118,8 +123,9 @@ impl App {
             self.base.device.logical.reset_command_buffer(command_buffers[0], vk::CommandBufferResetFlags::empty()).expect("Failed to reset command buffer.");
         };
 
-        self.base.record_command_buffer(command_buffers[0], self.base.framebuffers[image_index as usize], &self.base.graphics_pipeline, &self.mesh_bundles);
-
+        self.base.begin_renderpass_command_buffer(&command_buffers[0], &self.base.framebuffers[image_index as usize]);
+        self.base.record_command_buffer(&command_buffers[0], &self.graphics_pipelines[0], &self.mesh_bundles);
+        self.base.end_command_buffer(&command_buffers[0]);
 
         let submit_infos = [
 	    vk::SubmitInfo::default()
@@ -201,6 +207,18 @@ impl App {
         }
     }
 
+    fn recreate_swapchain_and_pipelines(&mut self) {
+        self.base.recreate_swapchain();
+
+        for i in 0..self.graphics_pipelines.len() {
+            unsafe {
+                self.base.device.logical.destroy_pipeline(self.graphics_pipelines[i].graphics, None);
+                self.base.device.logical.destroy_pipeline_layout(self.graphics_pipelines[i].layout, None);
+            }
+
+            self.base.recreate_graphics_pipeline(&mut self.graphics_pipelines[i]);
+        }
+    }
 }
 
 impl Drop for App {
@@ -219,6 +237,11 @@ impl Drop for App {
                 self.base.device.logical.free_memory(mesh.staging_ind.memory, None);
                 self.base.device.logical.destroy_buffer(mesh.ind.buffer, None);
                 self.base.device.logical.free_memory(mesh.ind.memory, None);
+            }
+
+            for i in 0..self.graphics_pipelines.len() {
+                self.base.device.logical.destroy_pipeline(self.graphics_pipelines[i].graphics, None);
+                self.base.device.logical.destroy_pipeline_layout(self.graphics_pipelines[i].layout, None);
             }
 
         }
