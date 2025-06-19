@@ -38,14 +38,6 @@ pub struct SyncObjectsBundle {
     pub spare_fences: Vec<vk::Fence>,
 }
 
-pub struct MeshBundle {
-    pub mesh: Rect,
-    pub vbo: BufferBundle,
-    pub col: BufferBundle,
-    pub ind: BufferBundle,
-    pub staging: BufferBundle,
-}
-
 pub struct BufferBundle {
     pub buffer: vk::Buffer,
     pub memory: vk::DeviceMemory

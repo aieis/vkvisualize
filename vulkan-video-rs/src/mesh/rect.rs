@@ -2,9 +2,13 @@ use ash::vk;
 
 pub struct Rect {
     pub vertices: Vec<[f32; 2]>,
+    pub dirty_vertices: bool,
+
     pub colour: Vec<[f32; 3]>,
+    pub dirty_colour: bool,
+
     pub indices: Vec<u16>,
-    pub original_vertices: Option<Vec<[f32; 2]>>
+    pub dirty_indices: bool,
 }
 
 impl Rect {
@@ -29,9 +33,28 @@ impl Rect {
             vertices,
             colour,
             indices,
-            original_vertices: None
+            dirty_vertices: true,
+            dirty_colour: true,
+            dirty_indices: true,
         }
     }
+
+    pub fn transform(&mut self, rotation: f32, translation: [f32; 2]) {
+        let s = rotation.sin();
+        let c = rotation.cos();
+
+        for i in 0..self.vertices.len() {
+            let x = self.vertices[i][0];
+            let y = self.vertices[i][1];
+
+            let xp = x * c - y * s;
+            let yp = x * s + y * c;
+            self.vertices[i] = [xp + translation[0], yp + translation[1]];
+        }
+
+        self.dirty_vertices = true;
+    }
+
 
     pub fn size_vrt(&self) -> usize {
         std::mem::size_of_val(&self.vertices[..])

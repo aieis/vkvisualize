@@ -100,17 +100,6 @@ impl VkBase {
         }
     }
 
-    pub fn record_command_buffer(&self, command_buffer: &vk::CommandBuffer, graphics_pipeline: &GraphicsPipelineBundle, mesh_bundles: &[MeshBundle])  {
-        let command_buffer = *command_buffer;
-        unsafe {
-            self.device.logical.cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, graphics_pipeline.graphics);
-            for i in 0..mesh_bundles.len() {
-                self.device.logical.cmd_bind_vertex_buffers(command_buffer, 0, &[mesh_bundles[i].vbo.buffer, mesh_bundles[i].col.buffer], &[0, 0]);
-                self.device.logical.cmd_bind_index_buffer(command_buffer, mesh_bundles[i].ind.buffer, 0, vk::IndexType::UINT16);
-                self.device.logical.cmd_draw_indexed(command_buffer, mesh_bundles[i].mesh.indices.len() as u32, 1, 0, 0, 0);
-            }
-        }
-    }
 
     pub fn end_command_buffer(&self, command_buffer: &vk::CommandBuffer) {
         let command_buffer = *command_buffer;
@@ -163,10 +152,6 @@ impl VkBase {
             };
 
             if fence_status {
-                unsafe {
-                    self.device.logical.reset_command_buffer(command_buffer, vk::CommandBufferResetFlags::empty()).expect("Failed to reset command buffer.");
-                }
-
                 self.spare_command.buffers.push(command_buffer);
                 self.sync_objects.spare_fences.push(fence);
                 self.in_flight_buffers.remove(idx);

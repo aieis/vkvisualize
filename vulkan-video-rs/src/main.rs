@@ -7,9 +7,9 @@ mod shader_utils;
 mod devices;
 mod drawable;
 
+use drawable::drawable2d::Drawable2d;
 use mesh::Rect;
 use vk_bundles::*;
-use vk_utils::*;
 
 use ash::vk;
 use simple_logger::SimpleLogger;
@@ -27,7 +27,7 @@ use winit::{
 
 struct App {
     base: VkBase,
-    mesh_bundles: Vec<MeshBundle>,
+    mesh_bundles: Vec<Drawable2d>,
     graphics_pipelines: Vec<GraphicsPipelineBundle>,
     close: bool,
 }
@@ -37,8 +37,9 @@ impl App {
         let base = VkBase::new(window, 3);
 
         let mesh_bundles = vec![
-            create_mesh_bundle(&base.device, Rect::new(-0.9, -0.9, 0.5, 0.5, [1.0, 0.0, 0.0])),
-            create_mesh_bundle(&base.device, Rect::new(0.0, 0.0, 0.5, 0.5, [0.0, 0.0, 1.0])),
+            Drawable2d::new(&base.device, Rect::new(-0.9, -0.9, 0.5, 0.5, [1.0, 0.0, 0.0])),
+            Drawable2d::new(&base.device, Rect::new(0.0, 0.0, 0.5, 0.5, [0.0, 0.0, 1.0])),
+            Drawable2d::new(&base.device, Rect::new(-0.25, -0.25, 0.5, 0.5, [0.0, 1.0, 1.0]))
         ];
 
         let graphics_pipelines = vec![base.create_graphics_pipeline(Box::from(make_shader!("triangle")))];
@@ -53,6 +54,10 @@ impl App {
 
     fn update(&mut self) {
 
+        for mesh_bundle in self.mesh_bundles.iter_mut() {
+            mesh_bundle.mesh.transform(0.001, [0.0, 0.0]);
+        }
+
         self.base.cleanup_in_flight_buffers();
 
         if self.base.sync_objects.spare_fences.len() == 0 {
@@ -66,27 +71,22 @@ impl App {
 
         let command_buffers = [command_buffer.unwrap()];
 
-        for mesh_bundle in self.mesh_bundles.iter_mut() {
-            let size_vrt = mesh_bundle.mesh.size_vrt() as u64;
-            let size_col = mesh_bundle.mesh.size_col() as u64;
-            let size_ind = mesh_bundle.mesh.size_ind() as u64;
+        let command_buffer_begin_info =  vk::CommandBufferBeginInfo::default()
+            .flags(vk::CommandBufferUsageFlags::SIMULTANEOUS_USE);
 
-            unsafe {
-                let data_ptr = self.base.device.logical.map_memory(mesh_bundle.staging.memory, 0, size_vrt, vk::MemoryMapFlags::empty()).unwrap() as *mut [f32; 2];
-                data_ptr.copy_from_nonoverlapping(mesh_bundle.mesh.vertices.as_ptr(), mesh_bundle.mesh.vertices.len());
-                self.base.device.logical.unmap_memory(mesh_bundle.staging.memory);
-
-                let data_ptr = self.base.device.logical.map_memory(mesh_bundle.staging.memory, size_vrt, size_col, vk::MemoryMapFlags::empty()).unwrap() as *mut [f32; 3];
-                data_ptr.copy_from_nonoverlapping(mesh_bundle.mesh.colour.as_ptr(), mesh_bundle.mesh.colour.len());
-                self.base.device.logical.unmap_memory(mesh_bundle.staging.memory);
-
-                let data_ptr = self.base.device.logical.map_memory(mesh_bundle.staging.memory, size_vrt+size_col, size_ind, vk::MemoryMapFlags::empty()).unwrap() as *mut u16;
-                data_ptr.copy_from_nonoverlapping(mesh_bundle.mesh.indices.as_ptr(), mesh_bundle.mesh.indices.len());
-                self.base.device.logical.unmap_memory(mesh_bundle.staging.memory);
-            }
+        unsafe {
+            let _ = self.base.device.logical.reset_command_buffer(command_buffers[0], vk::CommandBufferResetFlags::empty());
+            self.base.device.logical.begin_command_buffer(command_buffers[0], &command_buffer_begin_info).unwrap();
         }
 
-        vk_utils::record_mesh_update(&self.base.device, &command_buffers[0], &self.mesh_bundles);
+        let res = Drawable2d::update(&self.base.device, &command_buffers[0], &mut self.mesh_bundles);
+
+        unsafe { self.base.device.logical.end_command_buffer(command_buffers[0]).unwrap(); }
+
+        if ! res {
+            self.base.spare_command.buffers.push(command_buffers[0]);
+            return;
+        }
 
         let submit_info = vk::SubmitInfo::default()
             .command_buffers(&command_buffers);
@@ -135,7 +135,7 @@ impl App {
         };
 
         self.base.begin_renderpass_command_buffer(&command_buffers[0], &self.base.framebuffers[image_index as usize]);
-        self.base.record_command_buffer(&command_buffers[0], &self.graphics_pipelines[0], &self.mesh_bundles);
+        Drawable2d::draw(&self.base.device, &command_buffers[0], &self.graphics_pipelines[0], &self.mesh_bundles);
         self.base.end_command_buffer(&command_buffers[0]);
 
         let submit_infos = [
