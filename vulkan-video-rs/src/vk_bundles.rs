@@ -43,6 +43,12 @@ pub struct BufferBundle {
     pub memory: vk::DeviceMemory
 }
 
+pub struct ImageBundle {
+    pub image: vk::Image,
+    pub memory: vk::DeviceMemory
+}
+
+
 pub struct CommandBundle {
     pub pool: vk::CommandPool,
     pub buffers: Vec<vk::CommandBuffer>
