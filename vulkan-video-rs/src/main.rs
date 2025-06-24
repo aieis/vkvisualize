@@ -6,6 +6,7 @@ mod vk_utils;
 mod shader_utils;
 mod devices;
 mod drawable;
+mod primitives;
 
 use drawable::drawable2d::Drawable2d;
 use mesh::Rect;

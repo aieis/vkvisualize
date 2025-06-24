@@ -3,7 +3,7 @@ use anyhow::{Result, anyhow};
 use ash::vk;
 
 use crate::{BufferBundle, DeviceBundle, ImageBundle};
-
+use crate::primitives::texture2d::PixelFormat;
 
 pub fn create_buffer(device: &DeviceBundle, size: u64, usage: vk::BufferUsageFlags, properties: vk::MemoryPropertyFlags) -> Result<BufferBundle>{
 
@@ -56,6 +56,12 @@ pub fn create_image(device: &DeviceBundle, width: u32, height: u32, format: vk::
     Ok ( ImageBundle {image, memory} )
 }
 
+pub fn format(format: &PixelFormat) -> vk::Format {
+    match format {
+        PixelFormat::RGBA => vk::Format::R8G8B8A8_UINT,
+        PixelFormat::Z16 => vk::Format::D16_UNORM
+    }
+}
 
 fn find_memory_type(
     type_filter: u32,
