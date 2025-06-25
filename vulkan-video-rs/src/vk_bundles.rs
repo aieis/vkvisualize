@@ -56,3 +56,10 @@ pub struct CommandBundle {
     pub pool: vk::CommandPool,
     pub buffers: Vec<vk::CommandBuffer>
 }
+
+pub struct TextureBundle {
+    pub resource: ImageBundle,
+    pub sampler: vk::Sampler,
+    pub image_view: vk::ImageView,
+    pub staging: BufferBundle,
+}
