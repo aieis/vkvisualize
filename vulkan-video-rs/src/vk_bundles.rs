@@ -1,7 +1,7 @@
 use ash::vk;
 use ash::khr;
 
-use crate::mesh::Rect;
+use crate::drawable::drawable_common::PipelineDescriptor;
 use crate::shader::Shader;
 
 pub struct SurfaceBundle {
@@ -29,6 +29,8 @@ pub struct GraphicsPipelineBundle {
     pub shader: Box<dyn Shader>,
     pub graphics: vk::Pipeline,
     pub layout: vk::PipelineLayout,
+    pub ubo: Option<Vec<vk::DescriptorSetLayout>>,
+    pub pipeline_desc: PipelineDescriptor
 }
 
 pub struct SyncObjectsBundle {
@@ -45,7 +47,8 @@ pub struct BufferBundle {
 
 pub struct ImageBundle {
     pub image: vk::Image,
-    pub memory: vk::DeviceMemory
+    pub memory: vk::DeviceMemory,
+    pub format: vk::Format,
 }
 
 

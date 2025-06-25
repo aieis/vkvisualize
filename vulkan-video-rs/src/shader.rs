@@ -22,13 +22,11 @@ fn compile_shader_modules(device: &ash::Device, vertex_code: &[u8], fragment_cod
 
 
 pub struct ShaderComp {
-    pub id: String,
     pub vertex_code: Vec<u8>,
     pub fragment_code: Vec<u8>,
 }
 
 pub struct ShaderFile {
-    pub id: String,
     pub vertex_path: String,
     pub fragment_path: String
 }
@@ -36,9 +34,6 @@ pub struct ShaderFile {
 
 pub trait Shader {
     fn compile(&self, device: &ash::Device) -> (vk::ShaderModule, vk::ShaderModule);
-
-    /* TODO: Replace string ids with a number */
-    fn id(&self) -> String;
 }
 
 impl Shader for ShaderFile {
@@ -47,28 +42,21 @@ impl Shader for ShaderFile {
 	let fragment_code = std::fs::read(&self.fragment_path).unwrap();
         return compile_shader_modules(device, &vertex_code, &fragment_code);
     }
-
-    fn id(&self) -> String {
-        return self.vertex_path.clone();
-    }
 }
 
 impl Shader for ShaderComp {
     fn compile(&self, device: &ash::Device) -> (vk::ShaderModule, vk::ShaderModule) {
         return compile_shader_modules(device, &self.vertex_code, &self.fragment_code);
     }
-
-    fn id(&self) -> String { self.id.clone() }
 }
 
 #[macro_export]
 macro_rules! make_shader {
     ($x: literal) => {
         {
-            let id = concat!("Comp_", $x).to_string();
             let vertex_code = include_bytes!(concat!("../assets/shaders/", $x, ".vert.spv")).to_vec();
             let fragment_code = include_bytes!(concat!("../assets/shaders/", $x, ".frag.spv")).to_vec();
-            ShaderComp { id, vertex_code, fragment_code  }
+            ShaderComp { vertex_code, fragment_code  }
         }
     }
 }

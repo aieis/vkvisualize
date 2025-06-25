@@ -2,9 +2,9 @@ use std::ffi::{c_char, c_void, CStr, CString};
 
 use ash::{ext::debug_utils, khr};
 
-use crate::mesh::Rect;
-use crate::shader::Shader;
+use crate::{drawable::drawable_common::DescSetBinding, shader::Shader};
 use crate::vk_bundles::*;
+use crate::drawable::drawable_common::PipelineDescriptor;
 
 use ash::vk;
 use winit::{raw_window_handle::{HasDisplayHandle, HasWindowHandle}, window::Window};
@@ -108,12 +108,18 @@ impl VkBase {
             let _ = self.device.logical.end_command_buffer(command_buffer);
         }
     }
-    pub fn create_graphics_pipeline(&self, shader: Box<dyn Shader>) -> GraphicsPipelineBundle {
-        return VkBase::create_graphics_pipeline_impl(&self.device, &self.swapchain, &self.render_pass, shader);
+
+    pub fn create_graphics_pipeline(&self, pipeline_desc: PipelineDescriptor, shader: Box<dyn Shader>) -> GraphicsPipelineBundle {
+        // TODO: ubo_set_layout should probably be created externally.
+        let ubo = if pipeline_desc.ubo_layout_bindings.len() == 0 { None } else {
+            Some(vec![Self::create_descriptor_set_layout(&self.device, &pipeline_desc.ubo_layout_bindings)])
+        };
+
+        return VkBase::create_graphics_pipeline_impl(&self.device, &self.swapchain, &self.render_pass, pipeline_desc, ubo, shader);
     }
 
-    pub fn recreate_graphics_pipeline(&self, graphics_pipeline: &mut GraphicsPipelineBundle) {
-        return VkBase::recreate_graphics_pipeline_impl(&self.device, &self.swapchain, &self.render_pass, graphics_pipeline);
+    pub fn recreate_graphics_pipeline(&self, graphics_pipeline: GraphicsPipelineBundle) -> GraphicsPipelineBundle {
+        return VkBase::create_graphics_pipeline_impl(&self.device, &self.swapchain, &self.render_pass, graphics_pipeline.pipeline_desc, graphics_pipeline.ubo, graphics_pipeline.shader);
     }
 
     pub fn recreate_swapchain(&mut self) {
@@ -369,7 +375,7 @@ impl VkBase {
     }
 
     /* Setup the graphics pipeline */
-    pub fn create_graphics_pipeline_impl(device: &DeviceBundle, swapchain: &SwapchainBundle, renderpass: &vk::RenderPass, shader: Box<dyn Shader>) -> GraphicsPipelineBundle {
+    pub fn create_graphics_pipeline_impl(device: &DeviceBundle, swapchain: &SwapchainBundle, renderpass: &vk::RenderPass, pipeline_desc: PipelineDescriptor, ubo: Option<Vec<vk::DescriptorSetLayout>>, shader: Box<dyn Shader>) -> GraphicsPipelineBundle {
 	let (shader_vertex, shader_fragment) = shader.compile(&device.logical);
         let main_function_name = CString::new("main").unwrap(); // the beginning function name in shader code.
 	let vertex_shader_stage = vk::PipelineShaderStageCreateInfo::default()
@@ -384,11 +390,9 @@ impl VkBase {
 
 	let shader_stage_create_infos = [vertex_shader_stage, fragment_shader_stage];
 
-        let bindings = Rect::get_binding_descriptions();
-        let attributes = Rect::get_attribute_descriptions();
         let vertex_input_state_info = vk::PipelineVertexInputStateCreateInfo::default()
-            .vertex_binding_descriptions(&bindings)
-            .vertex_attribute_descriptions(&attributes);
+            .vertex_binding_descriptions(&pipeline_desc.vertex_bindings)
+            .vertex_attribute_descriptions(&pipeline_desc.vertex_attributes);
 
 	let vertex_input_assembly_state_info = vk::PipelineInputAssemblyStateCreateInfo::default()
 	    .topology(vk::PrimitiveTopology::TRIANGLE_LIST)
@@ -462,7 +466,11 @@ impl VkBase {
             .logic_op(vk::LogicOp::CLEAR)
             .attachments(&color_blend_attachment_states);
 
-	let layout_create_info = vk::PipelineLayoutCreateInfo::default();
+	let mut layout_create_info = vk::PipelineLayoutCreateInfo::default();
+        if let Some(ubo) = ubo.as_ref() {
+            layout_create_info = layout_create_info.set_layouts(&ubo);
+        }
+
         let pipeline_layout = unsafe { device.logical.create_pipeline_layout(&layout_create_info, None).unwrap() };
 
         let graphic_pipeline_infos = [vk::GraphicsPipelineCreateInfo::default()
@@ -492,132 +500,10 @@ impl VkBase {
         GraphicsPipelineBundle {
             shader,
 	    graphics: graphics_pipelines[0],
-	    layout: pipeline_layout
-	}
-    }
-
-    pub fn recreate_graphics_pipeline_impl(device: &DeviceBundle, swapchain: &SwapchainBundle, renderpass: &vk::RenderPass, graphics_pipeline: &mut GraphicsPipelineBundle) {
-	let (shader_vertex, shader_fragment) = graphics_pipeline.shader.compile(&device.logical);
-        let main_function_name = CString::new("main").unwrap(); // the beginning function name in shader code.
-	let vertex_shader_stage = vk::PipelineShaderStageCreateInfo::default()
-	    .name(&main_function_name)
-	    .stage(vk::ShaderStageFlags::VERTEX)
-	    .module(shader_vertex);
-
-	let fragment_shader_stage = vk::PipelineShaderStageCreateInfo::default()
-	    .name(&main_function_name)
-	    .stage(vk::ShaderStageFlags::FRAGMENT)
-	    .module(shader_fragment);
-
-	let shader_stage_create_infos = [vertex_shader_stage, fragment_shader_stage];
-
-        let bindings = Rect::get_binding_descriptions();
-        let attributes = Rect::get_attribute_descriptions();
-        let vertex_input_state_info = vk::PipelineVertexInputStateCreateInfo::default()
-            .vertex_binding_descriptions(&bindings)
-            .vertex_attribute_descriptions(&attributes);
-
-	let vertex_input_assembly_state_info = vk::PipelineInputAssemblyStateCreateInfo::default()
-	    .topology(vk::PrimitiveTopology::TRIANGLE_LIST)
-	    .primitive_restart_enable(false);
-
-	let viewports = [vk::Viewport {
-	    x: 0.0,
-	    y: 0.0,
-	    width: swapchain.extent.width as f32,
-	    height: swapchain.extent.height as f32,
-	    min_depth: 0.0,
-	    max_depth: 1.0
-	}];
-
-	let scissors = [vk::Rect2D {
-	    offset: vk::Offset2D {x: 0, y: 0},
-	    extent: swapchain.extent
-	}];
-
-	// let dynamic_states = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
-	let dynamic_state_info = vk::PipelineDynamicStateCreateInfo::default();
-	//.dynamic_states(&dynamic_states);
-
-	let viewport_state_info = vk::PipelineViewportStateCreateInfo::default()
-	    .viewports(&viewports)
-	    .scissors(&scissors);
-
-	let rasterization_info = vk::PipelineRasterizationStateCreateInfo::default()
-	    .cull_mode(vk::CullModeFlags::BACK)
-	    .front_face(vk::FrontFace::CLOCKWISE)
-	    .polygon_mode(vk::PolygonMode::FILL)
-	    .depth_clamp_enable(false)
-	    .rasterizer_discard_enable(false)
-	    .line_width(1.0);
-
-	let multisample_state_info = vk::PipelineMultisampleStateCreateInfo::default()
-	    .rasterization_samples(vk::SampleCountFlags::TYPE_1);
-
-        let stencil_state = vk::StencilOpState {
-            fail_op: vk::StencilOp::KEEP,
-            pass_op: vk::StencilOp::KEEP,
-            depth_fail_op: vk::StencilOp::KEEP,
-            compare_op: vk::CompareOp::ALWAYS,
-            compare_mask: 0,
-            write_mask: 0,
-            reference: 0,
-        };
-
-        let depth_state_create_info = vk::PipelineDepthStencilStateCreateInfo::default()
-            .depth_compare_op(vk::CompareOp::LESS_OR_EQUAL)
-            .depth_bounds_test_enable(false)
-            .stencil_test_enable(false)
-            .front(stencil_state)
-            .back(stencil_state)
-            .max_depth_bounds(1.0)
-            .min_depth_bounds(0.0);
-
-
-        let color_blend_attachment_states = [vk::PipelineColorBlendAttachmentState {
-            blend_enable: 0,
-            src_color_blend_factor: vk::BlendFactor::SRC_COLOR,
-            dst_color_blend_factor: vk::BlendFactor::ONE_MINUS_DST_COLOR,
-            color_blend_op: vk::BlendOp::ADD,
-            src_alpha_blend_factor: vk::BlendFactor::ZERO,
-            dst_alpha_blend_factor: vk::BlendFactor::ZERO,
-            alpha_blend_op: vk::BlendOp::ADD,
-            color_write_mask: vk::ColorComponentFlags::RGBA,
-        }];
-
-	let color_blend_state = vk::PipelineColorBlendStateCreateInfo::default()
-            .logic_op(vk::LogicOp::CLEAR)
-            .attachments(&color_blend_attachment_states);
-
-	let layout_create_info = vk::PipelineLayoutCreateInfo::default();
-        let pipeline_layout = unsafe { device.logical.create_pipeline_layout(&layout_create_info, None).unwrap() };
-
-        let graphic_pipeline_infos = [vk::GraphicsPipelineCreateInfo::default()
-            .stages(&shader_stage_create_infos)
-            .vertex_input_state(&vertex_input_state_info)
-            .input_assembly_state(&vertex_input_assembly_state_info)
-            .viewport_state(&viewport_state_info)
-            .rasterization_state(&rasterization_info)
-            .multisample_state(&multisample_state_info)
-            .depth_stencil_state(&depth_state_create_info)
-            .color_blend_state(&color_blend_state)
-            .dynamic_state(&dynamic_state_info)
-            .layout(pipeline_layout)
-            .render_pass(*renderpass)];
-
-        let graphics_pipelines = unsafe {
-            device.logical.create_graphics_pipelines(vk::PipelineCache::null(), &graphic_pipeline_infos, None)
-                .expect("Failed to create Graphics Pipeline!.")
-        };
-
-        unsafe {
-            device.logical.destroy_shader_module(shader_vertex, None);
-            device.logical.destroy_shader_module(shader_fragment, None);
+	    layout: pipeline_layout,
+            ubo,
+            pipeline_desc
         }
-
-
-        graphics_pipeline.graphics = graphics_pipelines[0];
-	graphics_pipeline.layout =  pipeline_layout;
     }
 
     pub fn create_render_pass(device: &DeviceBundle, swapchain: &SwapchainBundle) -> vk::RenderPass{
@@ -737,6 +623,89 @@ impl VkBase {
         }
 
         sync_objects
+    }
+
+    /* Create descriptor sets */
+    fn create_descriptor_pool(device: &DeviceBundle, swapchain_images_size: usize) -> vk::DescriptorPool {
+        let pool_sizes = [vk::DescriptorPoolSize::default().descriptor_count(swapchain_images_size as u32)];
+        let descriptor_pool_create_info = vk::DescriptorPoolCreateInfo::default()
+            .flags(vk::DescriptorPoolCreateFlags::empty())
+            .max_sets(swapchain_images_size as u32)
+            .pool_sizes(&pool_sizes);
+
+        unsafe {
+            device.logical.create_descriptor_pool(&descriptor_pool_create_info, None)
+                .expect("Failed to create Descriptor Pool!")
+        }
+    }
+
+    fn create_descriptor_sets(
+        device: &DeviceBundle,
+        descriptor_pool: vk::DescriptorPool,
+        descriptor_set_layout: vk::DescriptorSetLayout,
+        texture_image_view: vk::ImageView,
+        texture_sampler: vk::Sampler,
+        swapchain_images_size: usize,
+    ) -> Vec<vk::DescriptorSet> {
+        let mut layouts: Vec<vk::DescriptorSetLayout> = vec![];
+        for _ in 0..swapchain_images_size {
+            layouts.push(descriptor_set_layout);
+        }
+
+        let descriptor_set_allocate_info = vk::DescriptorSetAllocateInfo::default()
+            .descriptor_pool(descriptor_pool)
+            .set_layouts(&layouts);
+
+        let descriptor_sets = unsafe {
+            device.logical
+                .allocate_descriptor_sets(&descriptor_set_allocate_info)
+                .expect("Failed to allocate descriptor sets!")
+        };
+
+        for (_, &descritptor_set) in descriptor_sets.iter().enumerate() {
+            let descriptor_image_infos = [
+                vk::DescriptorImageInfo::default()
+                    .sampler(texture_sampler)
+                    .image_view(texture_image_view)
+                    .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+            ];
+
+            let descriptor_write_sets = [
+                vk::WriteDescriptorSet::default()
+                    .dst_set(descritptor_set)
+                    .dst_binding(0)
+                    .dst_array_element(0)
+                    .descriptor_count(1)
+                    .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                    .image_info(&descriptor_image_infos)
+            ];
+
+            unsafe {
+                device.logical.update_descriptor_sets(&descriptor_write_sets, &[]);
+            }
+        }
+
+        descriptor_sets
+    }
+
+    fn create_descriptor_set_layout(device: &DeviceBundle, descs: &[DescSetBinding]) -> vk::DescriptorSetLayout {
+
+        let ubo_layout_bindings: Vec<_> = descs.iter().map(|desc| {
+            vk::DescriptorSetLayoutBinding::default()
+                .binding(desc.binding)
+                .descriptor_count(desc.descriptor_count)
+                .descriptor_type(desc.descriptor_type)
+                .stage_flags(desc.stage_flags)
+        }).collect::<_>();
+
+        let ubo_layout_create_info = vk::DescriptorSetLayoutCreateInfo::default()
+            .flags(vk::DescriptorSetLayoutCreateFlags::empty())
+            .bindings(&ubo_layout_bindings);
+
+        unsafe {
+            device.logical.create_descriptor_set_layout(&ubo_layout_create_info, None)
+                .expect("Failed to create Descriptor Set Layout!")
+        }
     }
 
     /* Setup validation layer callbacks */

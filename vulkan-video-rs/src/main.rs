@@ -2,11 +2,11 @@ mod vk_base;
 mod vk_bundles;
 mod shader;
 mod mesh;
-mod vk_utils;
 mod shader_utils;
 mod devices;
 mod drawable;
 mod primitives;
+mod utils;
 
 use drawable::drawable2d::Drawable2d;
 use mesh::Rect;
@@ -43,7 +43,7 @@ impl App {
             Drawable2d::new(&base.device, Rect::new(-0.25, -0.25, 0.5, 0.5, [0.0, 1.0, 1.0]))
         ];
 
-        let graphics_pipelines = vec![base.create_graphics_pipeline(Box::from(make_shader!("triangle")))];
+        let graphics_pipelines = vec![base.create_graphics_pipeline(Drawable2d::pipeline_descriptor(), Box::from(make_shader!("triangle")))];
 
         Self {
             base,
@@ -220,16 +220,26 @@ impl App {
     }
 
     fn recreate_swapchain_and_pipelines(&mut self) {
+        // TODO: Pushing and popping will be bad when there are more graphics
+
         self.base.recreate_swapchain();
 
-        for i in 0..self.graphics_pipelines.len() {
+        let count = self.graphics_pipelines.len();
+
+        let mut new_pipes = Vec::new();
+
+        for _ in 0..count {
+            let graphics_pipeline = self.graphics_pipelines.remove(0);
             unsafe {
-                self.base.device.logical.destroy_pipeline(self.graphics_pipelines[i].graphics, None);
-                self.base.device.logical.destroy_pipeline_layout(self.graphics_pipelines[i].layout, None);
+                self.base.device.logical.destroy_pipeline(graphics_pipeline.graphics, None);
+                self.base.device.logical.destroy_pipeline_layout(graphics_pipeline.layout, None);
             }
 
-            self.base.recreate_graphics_pipeline(&mut self.graphics_pipelines[i]);
+            let graphics_pipeline = self.base.recreate_graphics_pipeline(graphics_pipeline);
+            new_pipes.push(graphics_pipeline);
         }
+
+        self.graphics_pipelines = new_pipes;
     }
 }
 
@@ -252,6 +262,12 @@ impl Drop for App {
             }
 
             for i in 0..self.graphics_pipelines.len() {
+                if let Some(ubo) = self.graphics_pipelines[i].ubo.as_ref() {
+                    for ubo_elem in ubo {
+                        self.base.device.logical.destroy_descriptor_set_layout(*ubo_elem, None)
+                    }
+                }
+
                 self.base.device.logical.destroy_pipeline(self.graphics_pipelines[i].graphics, None);
                 self.base.device.logical.destroy_pipeline_layout(self.graphics_pipelines[i].layout, None);
             }

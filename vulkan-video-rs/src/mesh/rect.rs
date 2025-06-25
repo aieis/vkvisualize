@@ -1,5 +1,3 @@
-use ash::vk;
-
 pub struct Rect {
     pub vertices: Vec<[f32; 2]>,
     pub dirty_vertices: bool,
@@ -66,31 +64,5 @@ impl Rect {
 
     pub fn size_col(&self) -> usize {
         std::mem::size_of_val(&self.colour[..])
-    }
-
-    pub fn get_binding_descriptions() -> [vk::VertexInputBindingDescription; 2] {
-        [
-            vk::VertexInputBindingDescription::default()
-                .binding(0)
-                .stride(std::mem::size_of::<[f32; 2]>() as u32)
-                .input_rate(vk::VertexInputRate::VERTEX),
-            vk::VertexInputBindingDescription::default()
-                .binding(1)
-                .stride(std::mem::size_of::<[f32; 3]>() as u32)
-                .input_rate(vk::VertexInputRate::VERTEX)
-        ]
-    }
-
-    pub fn get_attribute_descriptions() -> [vk::VertexInputAttributeDescription; 2] {
-        [
-            vk::VertexInputAttributeDescription::default()
-                .binding(0)
-                .location(0)
-                .format(vk::Format::R32G32_SFLOAT),
-            vk::VertexInputAttributeDescription::default()
-                .binding(1)
-                .location(1)
-                .format(vk::Format::R32G32B32_SFLOAT)
-        ]
     }
 }

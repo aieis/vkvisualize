@@ -2,8 +2,10 @@ use ash::vk;
 
 use crate::mesh::Rect;
 use crate::vk_bundles::BufferBundle;
-use crate::{vk_utils, DeviceBundle, GraphicsPipelineBundle, ImageBundle};
+use crate::{utils, DeviceBundle, GraphicsPipelineBundle, ImageBundle};
 use crate::primitives::texture2d::Texture2d;
+
+use super::drawable_common::{DescSetBinding, PipelineDescriptor};
 
 
 pub struct DrawableTexture {
@@ -19,11 +21,11 @@ impl DrawableTexture {
 
         let required_memory_flags = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
         let usage = vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED;
-        let image = vk_utils::create_image(device, texture.width, texture.height, vk_utils::format(&texture.format), vk::ImageTiling::OPTIMAL, usage, required_memory_flags).unwrap();
+        let image = utils::image::create_image(device, texture.width, texture.height, utils::image::format(&texture.format), vk::ImageTiling::OPTIMAL, usage, required_memory_flags).unwrap();
 
         let required_memory_flags = vk::MemoryPropertyFlags::DEVICE_LOCAL;
         let usage = vk::BufferUsageFlags::VERTEX_BUFFER;
-        let vbo = vk_utils::create_buffer(device, rect.size_vrt() as u64, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+        let vbo = utils::buffer::create_buffer(device, rect.size_vrt() as u64, usage, required_memory_flags).expect("Failed to create vertex buffer.");
 
         DrawableTexture { rect, texture, image, vbo }
     }
@@ -69,6 +71,57 @@ impl DrawableTexture {
                 device.logical.cmd_bind_vertex_buffers(command_buffer, 0, &[mesh_bundles[i].vbo.buffer], &[0, 0]);
                 device.logical.cmd_draw_indexed(command_buffer, mesh_bundles[i].rect.indices.len() as u32, 1, 0, 0, 0);
             }
+        }
+    }
+
+    fn create_descriptor_sets(
+        device: &DeviceBundle,
+        descriptor_pool: vk::DescriptorPool,
+        descriptor_set_layout: vk::DescriptorSetLayout,
+        texture_image_view: vk::ImageView,
+        texture_sampler: vk::Sampler,
+        swapchain_images_size: usize,
+    ) -> Vec<vk::DescriptorSet> {
+        vec![]
+    }
+
+    pub fn pipeline_descriptor() -> PipelineDescriptor {
+        let ubo_layout_bindings = vec![
+            DescSetBinding {
+                binding: 0,
+                descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+                descriptor_count: 1,
+                stage_flags: vk::ShaderStageFlags::FRAGMENT,
+            }
+        ];
+
+        let vertex_bindings = vec![
+            vk::VertexInputBindingDescription::default()
+                .binding(0)
+                .stride(std::mem::size_of::<[f32; 2]>() as u32)
+                .input_rate(vk::VertexInputRate::VERTEX),
+
+            vk::VertexInputBindingDescription::default()
+                .binding(1)
+                .stride(std::mem::size_of::<[f32; 2]>() as u32)
+                .input_rate(vk::VertexInputRate::VERTEX)
+        ];
+
+        let vertex_attributes = vec![
+            vk::VertexInputAttributeDescription::default()
+                .binding(0)
+                .location(0)
+                .format(vk::Format::R32G32_SFLOAT),
+            vk::VertexInputAttributeDescription::default()
+                .binding(1)
+                .location(1)
+                .format(vk::Format::R32G32_SFLOAT)
+        ];
+
+        PipelineDescriptor {
+            ubo_layout_bindings,
+            vertex_bindings,
+            vertex_attributes,
         }
     }
 }

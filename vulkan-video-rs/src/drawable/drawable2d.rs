@@ -2,7 +2,9 @@ use ash::vk;
 
 use crate::mesh::Rect;
 use crate::vk_bundles::BufferBundle;
-use crate::{vk_utils, DeviceBundle, GraphicsPipelineBundle};
+use crate::{utils::buffer, DeviceBundle, GraphicsPipelineBundle};
+
+use super::drawable_common::PipelineDescriptor;
 
 
 pub struct Drawable2d {
@@ -24,19 +26,19 @@ impl Drawable2d {
 
         let required_memory_flags = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
         let usage = vk::BufferUsageFlags::TRANSFER_SRC;
-        let staging = vk_utils::create_buffer(device, size_staging, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+        let staging = buffer::create_buffer(device, size_staging, usage, required_memory_flags).expect("Failed to create vertex buffer.");
 
         let required_memory_flags = vk::MemoryPropertyFlags::DEVICE_LOCAL;
         let usage = vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::VERTEX_BUFFER;
-        let vbo = vk_utils::create_buffer(device, size_vrt, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+        let vbo = buffer::create_buffer(device, size_vrt, usage, required_memory_flags).expect("Failed to create vertex buffer.");
 
         let required_memory_flags = vk::MemoryPropertyFlags::DEVICE_LOCAL;
         let usage = vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::VERTEX_BUFFER;
-        let col = vk_utils::create_buffer(device, size_col, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+        let col = buffer::create_buffer(device, size_col, usage, required_memory_flags).expect("Failed to create vertex buffer.");
 
         let required_memory_flags = vk::MemoryPropertyFlags::DEVICE_LOCAL;
         let usage = vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::INDEX_BUFFER;
-        let ind = vk_utils::create_buffer(device, size_ind, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+        let ind = buffer::create_buffer(device, size_ind, usage, required_memory_flags).expect("Failed to create vertex buffer.");
 
         Drawable2d { mesh, vbo, col, ind, staging}
     }
@@ -105,7 +107,7 @@ impl Drawable2d {
 
             mesh_bundle.mesh.dirty_colour = false;
             mesh_bundle.mesh.dirty_vertices = false;
-            mesh_bundle.mesh.dirty_indices = false;            
+            mesh_bundle.mesh.dirty_indices = false;
         }
 
         return recorded;
@@ -120,6 +122,38 @@ impl Drawable2d {
                 device.logical.cmd_bind_index_buffer(command_buffer, mesh_bundles[i].ind.buffer, 0, vk::IndexType::UINT16);
                 device.logical.cmd_draw_indexed(command_buffer, mesh_bundles[i].mesh.indices.len() as u32, 1, 0, 0, 0);
             }
+        }
+    }
+
+    pub fn pipeline_descriptor() -> PipelineDescriptor {
+        let ubo_layout_bindings = vec![];
+
+        let vertex_bindings = vec![
+            vk::VertexInputBindingDescription::default()
+                .binding(0)
+                .stride(std::mem::size_of::<[f32; 2]>() as u32)
+                .input_rate(vk::VertexInputRate::VERTEX),
+            vk::VertexInputBindingDescription::default()
+                .binding(1)
+                .stride(std::mem::size_of::<[f32; 3]>() as u32)
+                .input_rate(vk::VertexInputRate::VERTEX)
+        ];
+
+        let vertex_attributes = vec![
+            vk::VertexInputAttributeDescription::default()
+                .binding(0)
+                .location(0)
+                .format(vk::Format::R32G32_SFLOAT),
+            vk::VertexInputAttributeDescription::default()
+                .binding(1)
+                .location(1)
+                .format(vk::Format::R32G32B32_SFLOAT)
+        ];
+
+        PipelineDescriptor {
+            ubo_layout_bindings,
+            vertex_bindings,
+            vertex_attributes,
         }
     }
 }
