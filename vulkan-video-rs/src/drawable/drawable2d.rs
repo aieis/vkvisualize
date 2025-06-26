@@ -67,42 +67,42 @@ impl Drawable2d {
                     let data_ptr = device.logical.map_memory(mesh_bundle.staging.memory, 0, size_vrt, vk::MemoryMapFlags::empty()).unwrap() as *mut [f32; 2];
                     data_ptr.copy_from_nonoverlapping(mesh_bundle.mesh.vertices.as_ptr(), mesh_bundle.mesh.vertices.len());
                     device.logical.unmap_memory(mesh_bundle.staging.memory);
+
+                    let copy_region = [
+                        vk::BufferCopy::default().size(size_vrt)
+                    ];
+
+                    device.logical.cmd_copy_buffer(*command_buffer, mesh_bundle.staging.buffer, mesh_bundle.vbo.buffer, &copy_region);
                 }
 
                 if mesh_bundle.mesh.dirty_colour {
                     let data_ptr = device.logical.map_memory(mesh_bundle.staging.memory, size_vrt, size_col, vk::MemoryMapFlags::empty()).unwrap() as *mut [f32; 3];
                     data_ptr.copy_from_nonoverlapping(mesh_bundle.mesh.colour.as_ptr(), mesh_bundle.mesh.colour.len());
                     device.logical.unmap_memory(mesh_bundle.staging.memory);
+
+                    let copy_region = [
+                        vk::BufferCopy::default()
+                            .src_offset(size_vrt)
+                            .size(size_col)
+                    ];
+
+                    device.logical.cmd_copy_buffer(*command_buffer, mesh_bundle.staging.buffer, mesh_bundle.col.buffer, &copy_region);
                 }
 
                 if mesh_bundle.mesh.dirty_indices {
                     let data_ptr = device.logical.map_memory(mesh_bundle.staging.memory, size_vrt+size_col, size_ind, vk::MemoryMapFlags::empty()).unwrap() as *mut u16;
                     data_ptr.copy_from_nonoverlapping(mesh_bundle.mesh.indices.as_ptr(), mesh_bundle.mesh.indices.len());
                     device.logical.unmap_memory(mesh_bundle.staging.memory);
+
+                    let copy_region = [
+                        vk::BufferCopy::default()
+                            .src_offset(size_vrt+size_col)
+                            .size(size_ind as u64)
+                    ];
+
+                    device.logical.cmd_copy_buffer(*command_buffer, mesh_bundle.staging.buffer, mesh_bundle.ind.buffer, &copy_region);
+
                 }
-
-                let copy_region = [
-                    vk::BufferCopy::default().size(size_vrt)
-                ];
-
-                device.logical.cmd_copy_buffer(*command_buffer, mesh_bundle.staging.buffer, mesh_bundle.vbo.buffer, &copy_region);
-
-                let copy_region = [
-                    vk::BufferCopy::default()
-                        .src_offset(size_vrt)
-                        .size(size_col)
-                ];
-
-                device.logical.cmd_copy_buffer(*command_buffer, mesh_bundle.staging.buffer, mesh_bundle.col.buffer, &copy_region);
-
-                let copy_region = [
-                    vk::BufferCopy::default()
-                        .src_offset(size_vrt+size_col)
-                        .size(size_ind as u64)
-                ];
-
-                device.logical.cmd_copy_buffer(*command_buffer, mesh_bundle.staging.buffer, mesh_bundle.ind.buffer, &copy_region);
-
             }
 
             mesh_bundle.mesh.dirty_colour = false;

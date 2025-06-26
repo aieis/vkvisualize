@@ -688,7 +688,7 @@ impl VkBase {
         descriptor_sets
     }
 
-    fn create_descriptor_set_layout(device: &DeviceBundle, descs: &[DescSetBinding]) -> vk::DescriptorSetLayout {
+    pub fn create_descriptor_set_layout(device: &DeviceBundle, descs: &[DescSetBinding]) -> vk::DescriptorSetLayout {
 
         let ubo_layout_bindings: Vec<_> = descs.iter().map(|desc| {
             vk::DescriptorSetLayoutBinding::default()

@@ -43,8 +43,11 @@ impl App {
             Drawable2d::new(&base.device, Rect::new(-0.25, -0.25, 0.5, 0.5, [0.0, 1.0, 1.0]))
         ];
 
-        let graphics_pipelines = vec![base.create_graphics_pipeline(Drawable2d::pipeline_descriptor(), Box::from(make_shader!("triangle")))];
-
+        let graphics_pipelines = vec![
+            base.create_graphics_pipeline(Drawable2d::pipeline_descriptor(), Box::from(make_shader!("triangle"))),
+            //base.create_graphics_pipeline(Drawable2d::pipeline_descriptor(), Box::from(make_shader!("texture")))
+        ];
+        
         Self {
             base,
             mesh_bundles,
