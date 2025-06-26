@@ -15,6 +15,7 @@ pub struct DrawableTexture {
     pub texture_data: Texture2d,
     pub texture: TextureBundle,
     pub vbo: BufferBundle,
+    pub coords: BufferBundle,
     pub desc_set: Vec<vk::DescriptorSet>,
 }
 
@@ -32,9 +33,17 @@ impl DrawableTexture {
         let usage = vk::BufferUsageFlags::VERTEX_BUFFER;
         let vbo = utils::buffer::create_buffer(device, rect.size_vrt() as u64, usage, required_memory_flags).expect("Failed to create vertex buffer.");
 
+        //TODO: FIX THIS SILLY GOOSE
+        let coord_mesh = Rect::new(0.0, 0.0, 1.0, 1.0, [1.0, 1.0, 1.0]);
+        
+        let required_memory_flags = vk::MemoryPropertyFlags::HOST_VISIBLE;
+        let usage = vk::BufferUsageFlags::VERTEX_BUFFER;
+        let coords = utils::buffer::create_buffer(device, coord_mesh.size_vrt() as u64, usage, required_memory_flags).expect("Failed to create vertex buffer.");
+
+
         let desc_set = Self::create_descriptor_sets(device, descriptor_pool, desc_layout, &texture, swapchain_image_size);
         transition_image_layout::<ImageLayout_Undefined, ImageLayout_ShaderReadOnlyOptimal>(device, command_buffer, &texture.resource);
-        DrawableTexture { rect, texture_data, texture, vbo, desc_set }
+        DrawableTexture { rect, texture_data, texture, vbo, coords, desc_set }
     }
 
     pub fn dirty(&self) -> bool {
@@ -59,6 +68,11 @@ impl DrawableTexture {
                     let data_ptr = device.logical.map_memory(entity.vbo.memory, 0, size_vrt, vk::MemoryMapFlags::empty()).unwrap() as *mut [f32; 2];
                     data_ptr.copy_from_nonoverlapping(entity.rect.vertices.as_ptr(), entity.rect.vertices.len());
                     device.logical.unmap_memory(entity.vbo.memory);
+
+                    let coord_mesh = Rect::new(0.0, 0.0, 1.0, 1.0, [1.0, 1.0, 1.0]);
+                    let data_ptr = device.logical.map_memory(entity.coords.memory, 0, coord_mesh.size_vrt() as u64, vk::MemoryMapFlags::empty()).unwrap() as *mut [f32; 2];
+                    data_ptr.copy_from_nonoverlapping(coord_mesh.vertices.as_ptr(), entity.rect.vertices.len());
+                    device.logical.unmap_memory(entity.coords.memory);
                 }
 
                 if entity.texture_data.dirty {
