@@ -28,7 +28,7 @@ impl DrawableTexture {
 
         let texture = utils::image::create_texture_image(device, texture_data.width, texture_data.height, texture_data.size, utils::image::format(&texture_data.format));
 
-        let required_memory_flags = vk::MemoryPropertyFlags::DEVICE_LOCAL;
+        let required_memory_flags = vk::MemoryPropertyFlags::HOST_VISIBLE;
         let usage = vk::BufferUsageFlags::VERTEX_BUFFER;
         let vbo = utils::buffer::create_buffer(device, rect.size_vrt() as u64, usage, required_memory_flags).expect("Failed to create vertex buffer.");
 

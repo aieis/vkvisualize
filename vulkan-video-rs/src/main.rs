@@ -8,8 +8,10 @@ mod drawable;
 mod primitives;
 mod utils;
 
-use drawable::drawable2d::Drawable2d;
+use drawable::{drawable2d::Drawable2d, drawable_tex::DrawableTexture};
 use mesh::Rect;
+use primitives::texture2d::{PixelFormat, Texture2d};
+use utils::image::{begin_single_time_command, end_single_time_command};
 use vk_bundles::*;
 
 use ash::vk;
@@ -29,6 +31,7 @@ use winit::{
 struct App {
     base: VkBase,
     mesh_bundles: Vec<Drawable2d>,
+    textures: Vec<DrawableTexture>,
     graphics_pipelines: Vec<GraphicsPipelineBundle>,
     close: bool,
 }
@@ -37,20 +40,35 @@ impl App {
     fn new(window: Window) -> Self {
         let base = VkBase::new(window, 3);
 
+        let graphics_pipelines = vec![
+            base.create_graphics_pipeline(Drawable2d::pipeline_descriptor(), Box::from(make_shader!("triangle"))),
+            base.create_graphics_pipeline(DrawableTexture::pipeline_descriptor(), Box::from(make_shader!("texture")))
+        ];
+
         let mesh_bundles = vec![
             Drawable2d::new(&base.device, Rect::new(-0.9, -0.9, 0.5, 0.5, [1.0, 0.0, 0.0])),
             Drawable2d::new(&base.device, Rect::new(0.0, 0.0, 0.5, 0.5, [0.0, 0.0, 1.0])),
             Drawable2d::new(&base.device, Rect::new(-0.25, -0.25, 0.5, 0.5, [0.0, 1.0, 1.0]))
         ];
 
-        let graphics_pipelines = vec![
-            base.create_graphics_pipeline(Drawable2d::pipeline_descriptor(), Box::from(make_shader!("triangle"))),
-            //base.create_graphics_pipeline(Drawable2d::pipeline_descriptor(), Box::from(make_shader!("texture")))
+        let data: [u8; 320 * 320 * 4] = [255; 320 *320 * 4];
+        let texture = Texture2d::new(data.to_vec(), 320, 320, PixelFormat::RGBA);
+
+        //TODO: Cleanup descriptor pool
+
+        let command_buffer = begin_single_time_command(&base.device, base.spare_command.pool);
+        let ubo = graphics_pipelines[1].ubo.as_ref().unwrap();
+
+        let textures = vec![
+            DrawableTexture::new(&base.device, base.descriptor_pool,  command_buffer, ubo[0], base.swapchain.images.len(), Rect::new(0.5, 0.5, 0.2, 0.2, [1.0, 1.0, 1.0]), texture)
         ];
-        
+
+        end_single_time_command(&base.device, base.spare_command.pool, base.device.present_queue, command_buffer);
+
         Self {
             base,
             mesh_bundles,
+            textures,
             graphics_pipelines,
             close: false
         }
@@ -84,6 +102,7 @@ impl App {
         }
 
         let res = Drawable2d::update(&self.base.device, &command_buffers[0], &mut self.mesh_bundles);
+        DrawableTexture::update(&self.base.device, command_buffers[0], &mut self.textures);
 
         unsafe { self.base.device.logical.end_command_buffer(command_buffers[0]).unwrap(); }
 
@@ -262,6 +281,17 @@ impl Drop for App {
                 self.base.device.logical.free_memory(mesh.col.memory, None);
                 self.base.device.logical.destroy_buffer(mesh.ind.buffer, None);
                 self.base.device.logical.free_memory(mesh.ind.memory, None);
+            }
+
+            for texture in self.textures.iter() {
+                self.base.device.logical.destroy_buffer(texture.vbo.buffer, None);
+                self.base.device.logical.free_memory(texture.vbo.memory, None);
+                self.base.device.logical.destroy_buffer(texture.texture.staging.buffer, None);
+                self.base.device.logical.free_memory(texture.texture.staging.memory, None);
+                self.base.device.logical.destroy_image(texture.texture.resource.image, None);
+                self.base.device.logical.free_memory(texture.texture.resource.memory, None);
+                self.base.device.logical.destroy_image_view(texture.texture.image_view, None);
+                self.base.device.logical.destroy_sampler(texture.texture.sampler, None);
             }
 
             for i in 0..self.graphics_pipelines.len() {

@@ -22,6 +22,7 @@ pub struct VkBase {
     pub framebuffers: Vec<vk::Framebuffer>,
     pub commands: Vec<CommandBundle>,
     pub spare_command: CommandBundle,
+    pub descriptor_pool: vk::DescriptorPool,
     pub in_flight_buffers: Vec<(vk::CommandBuffer, vk::Fence)>,
     pub sync_objects: SyncObjectsBundle,
     pub current_frame: usize,
@@ -46,6 +47,8 @@ impl VkBase {
         let spare_command = VkBase::create_command_pools(&device, 1, max_in_flight).remove(0);
         let sync_objects = VkBase::create_sync_objects(&device, max_in_flight);
 
+        let descriptor_pool = VkBase::create_descriptor_pool(&device, swapchain.images.len());
+
 
         Self {
             _entry: entry,
@@ -64,6 +67,8 @@ impl VkBase {
             commands,
             spare_command,
             in_flight_buffers: vec![],
+
+            descriptor_pool,
 
 	    sync_objects,
 	    current_frame: 0,
@@ -238,6 +243,13 @@ impl VkBase {
         for dev in devs.iter() {
             let properties = unsafe { instance.get_physical_device_properties(*dev) };
             let queue_props = unsafe { instance.get_physical_device_queue_family_properties(*dev) };
+            let features = unsafe { instance.get_physical_device_features(*dev) };
+
+            println!("\t{:?}", properties.device_name_as_c_str().unwrap());
+
+            if !features.sampler_anisotropy == vk::FALSE {
+                continue;
+            }
 
             for (i, queue) in queue_props.iter().enumerate() {
                 let surface_support = unsafe { surface.loader.get_physical_device_surface_support(*dev, i as u32, surface.surface).unwrap() };
@@ -246,7 +258,6 @@ impl VkBase {
                 }
             }
 
-            println!("\t{:?}", properties.device_name_as_c_str().unwrap());
         }
 
         println!();
@@ -259,7 +270,11 @@ impl VkBase {
             khr::swapchain::NAME.as_ptr(),
         ];
 
+        let physical_features = vk::PhysicalDeviceFeatures::default()
+            .sampler_anisotropy(true);
+
         let device_create_info = vk::DeviceCreateInfo::default()
+            .enabled_features(&physical_features)
             .queue_create_infos(std::slice::from_ref(&queue_info))
             .enabled_extension_names(&device_extension_names_raw);
 
@@ -759,6 +774,8 @@ impl Drop for VkBase {
 
             self.device.logical.free_command_buffers(self.spare_command.pool, &self.spare_command.buffers);
             self.device.logical.destroy_command_pool(self.spare_command.pool, None);
+
+            self.device.logical.destroy_descriptor_pool(self.descriptor_pool, None);
 
             self.device.logical.destroy_device(None);
             self.surface.loader.destroy_surface(self.surface.surface, None);
