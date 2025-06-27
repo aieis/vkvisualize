@@ -2,9 +2,8 @@ use ash::vk;
 
 use crate::mesh::Rect;
 use crate::utils::image::{copy_buffer_to_image, transition_image_layout, ImageLayout_ShaderReadOnlyOptimal, ImageLayout_TransferDstOptimal, ImageLayout_Undefined};
-use crate::vk_base::VkBase;
 use crate::vk_bundles::BufferBundle;
-use crate::{utils, vk_base, DeviceBundle, GraphicsPipelineBundle, ImageBundle, TextureBundle};
+use crate::{utils, DeviceBundle, GraphicsPipelineBundle, TextureBundle};
 use crate::primitives::texture2d::Texture2d;
 
 use super::drawable_common::{DescSetBinding, PipelineDescriptor};
@@ -15,6 +14,7 @@ pub struct DrawableTexture {
     pub texture_data: Texture2d,
     pub texture: TextureBundle,
     pub vbo: BufferBundle,
+    pub ind: BufferBundle,
     pub coords: BufferBundle,
     pub desc_set: Vec<vk::DescriptorSet>,
 }
@@ -27,7 +27,7 @@ impl DrawableTexture {
         rect: Rect, texture_data: Texture2d
     ) -> Self {
 
-        let texture = utils::image::create_texture_image(device, texture_data.width, texture_data.height, texture_data.size, utils::image::format(&texture_data.format));
+        let texture = utils::image::create_texture_image(device, texture_data.width, texture_data.height, texture_data.size, texture_data.format);
 
         let required_memory_flags = vk::MemoryPropertyFlags::HOST_VISIBLE;
         let usage = vk::BufferUsageFlags::VERTEX_BUFFER;
@@ -35,15 +35,18 @@ impl DrawableTexture {
 
         //TODO: FIX THIS SILLY GOOSE
         let coord_mesh = Rect::new(0.0, 0.0, 1.0, 1.0, [1.0, 1.0, 1.0]);
-        
+
         let required_memory_flags = vk::MemoryPropertyFlags::HOST_VISIBLE;
         let usage = vk::BufferUsageFlags::VERTEX_BUFFER;
         let coords = utils::buffer::create_buffer(device, coord_mesh.size_vrt() as u64, usage, required_memory_flags).expect("Failed to create vertex buffer.");
 
+        let required_memory_flags = vk::MemoryPropertyFlags::HOST_VISIBLE;
+        let usage = vk::BufferUsageFlags::INDEX_BUFFER;
+        let ind = utils::buffer::create_buffer(device, coord_mesh.size_vrt() as u64, usage, required_memory_flags).expect("Failed to create vertex buffer.");
 
         let desc_set = Self::create_descriptor_sets(device, descriptor_pool, desc_layout, &texture, swapchain_image_size);
-        transition_image_layout::<ImageLayout_Undefined, ImageLayout_ShaderReadOnlyOptimal>(device, command_buffer, &texture.resource);
-        DrawableTexture { rect, texture_data, texture, vbo, coords, desc_set }
+        transition_image_layout::<ImageLayout_Undefined, ImageLayout_ShaderReadOnlyOptimal>(device, command_buffer, &texture);
+        DrawableTexture { rect, texture_data, texture, vbo, coords, ind, desc_set }
     }
 
     pub fn dirty(&self) -> bool {
@@ -61,6 +64,7 @@ impl DrawableTexture {
             recorded = true;
 
             let size_vrt = entity.rect.size_vrt() as u64;
+            let size_ind = entity.rect.size_ind() as u64;
             let texture_size = entity.texture_data.size;
 
             unsafe {
@@ -75,14 +79,20 @@ impl DrawableTexture {
                     device.logical.unmap_memory(entity.coords.memory);
                 }
 
+                if entity.rect.dirty_indices {
+                    let data_ptr = device.logical.map_memory(entity.ind.memory, 0, size_ind, vk::MemoryMapFlags::empty()).unwrap() as *mut u16;
+                    data_ptr.copy_from_nonoverlapping(entity.rect.indices.as_ptr(), entity.rect.indices.len());
+                    device.logical.unmap_memory(entity.ind.memory);
+                }
+
                 if entity.texture_data.dirty {
                     let data_ptr = device.logical.map_memory(entity.texture.staging.memory, 0, texture_size, vk::MemoryMapFlags::empty()).unwrap() as *mut u8;
                     data_ptr.copy_from_nonoverlapping(entity.texture_data.data.as_ptr(), texture_size as usize);
                     device.logical.unmap_memory(entity.texture.staging.memory);
 
-                    transition_image_layout::<ImageLayout_ShaderReadOnlyOptimal, ImageLayout_TransferDstOptimal>(device, command_buffer, &entity.texture.resource);
-                    copy_buffer_to_image(device, command_buffer, entity.texture.staging.buffer, entity.texture.resource.image, entity.texture_data.width, entity.texture_data.height);
-                    transition_image_layout::<ImageLayout_TransferDstOptimal, ImageLayout_ShaderReadOnlyOptimal>(device, command_buffer, &entity.texture.resource);
+                    transition_image_layout::<ImageLayout_ShaderReadOnlyOptimal, ImageLayout_TransferDstOptimal>(device, command_buffer, &entity.texture);
+                    copy_buffer_to_image(device, command_buffer, &entity.texture, entity.texture.staging.buffer, entity.texture_data.width, entity.texture_data.height);
+                    transition_image_layout::<ImageLayout_TransferDstOptimal, ImageLayout_ShaderReadOnlyOptimal>(device, command_buffer, &entity.texture);
                 }
             }
 
@@ -94,11 +104,17 @@ impl DrawableTexture {
         return recorded;
     }
 
-    pub fn draw(device: &DeviceBundle, command_buffer: vk::CommandBuffer, graphics_pipeline: &GraphicsPipelineBundle, entities: &[Self])  {
+    pub fn draw(device: &DeviceBundle, command_buffer: vk::CommandBuffer, graphics_pipeline: &GraphicsPipelineBundle, current_swap_image: usize, entities: &[Self])  {
         unsafe {
             device.logical.cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, graphics_pipeline.graphics);
             for i in 0..entities.len() {
-                device.logical.cmd_bind_vertex_buffers(command_buffer, 0, &[entities[i].vbo.buffer], &[0, 0]);
+                device.logical.cmd_bind_vertex_buffers(command_buffer, 0, &[entities[i].vbo.buffer, entities[i].coords.buffer], &[0, 0]);
+                device.logical.cmd_bind_index_buffer(command_buffer, entities[i].ind.buffer, 0, vk::IndexType::UINT16);
+
+                device.logical.cmd_bind_descriptor_sets(
+                    command_buffer, vk::PipelineBindPoint::GRAPHICS, graphics_pipeline.layout, 0,
+                    &entities[i].desc_set[current_swap_image..current_swap_image+1], &[]);
+
                 device.logical.cmd_draw_indexed(command_buffer, entities[i].rect.indices.len() as u32, 1, 0, 0, 0);
             }
         }

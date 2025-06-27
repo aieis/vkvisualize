@@ -1,3 +1,4 @@
+#[derive(Clone, Copy)]
 pub enum PixelFormat {
     RGBA,
     Z16
@@ -9,7 +10,7 @@ pub struct Texture2d {
     pub height: u32,
     pub format: PixelFormat,
     pub size: u64,
-    
+
     pub dirty: bool
 }
 
@@ -19,7 +20,7 @@ impl Texture2d {
             PixelFormat::RGBA => 4,
             PixelFormat::Z16 => 2
         };
-        
+
         Self {
             data,
             width,

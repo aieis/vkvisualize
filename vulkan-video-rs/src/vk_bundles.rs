@@ -61,5 +61,6 @@ pub struct TextureBundle {
     pub resource: ImageBundle,
     pub sampler: vk::Sampler,
     pub image_view: vk::ImageView,
+    pub aspect_flags: vk::ImageAspectFlags,
     pub staging: BufferBundle,
 }

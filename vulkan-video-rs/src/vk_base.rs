@@ -654,54 +654,6 @@ impl VkBase {
         }
     }
 
-    fn create_descriptor_sets(
-        device: &DeviceBundle,
-        descriptor_pool: vk::DescriptorPool,
-        descriptor_set_layout: vk::DescriptorSetLayout,
-        texture_image_view: vk::ImageView,
-        texture_sampler: vk::Sampler,
-        swapchain_images_size: usize,
-    ) -> Vec<vk::DescriptorSet> {
-        let mut layouts: Vec<vk::DescriptorSetLayout> = vec![];
-        for _ in 0..swapchain_images_size {
-            layouts.push(descriptor_set_layout);
-        }
-
-        let descriptor_set_allocate_info = vk::DescriptorSetAllocateInfo::default()
-            .descriptor_pool(descriptor_pool)
-            .set_layouts(&layouts);
-
-        let descriptor_sets = unsafe {
-            device.logical
-                .allocate_descriptor_sets(&descriptor_set_allocate_info)
-                .expect("Failed to allocate descriptor sets!")
-        };
-
-        for (_, &descritptor_set) in descriptor_sets.iter().enumerate() {
-            let descriptor_image_infos = [
-                vk::DescriptorImageInfo::default()
-                    .sampler(texture_sampler)
-                    .image_view(texture_image_view)
-                    .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-            ];
-
-            let descriptor_write_sets = [
-                vk::WriteDescriptorSet::default()
-                    .dst_set(descritptor_set)
-                    .dst_binding(0)
-                    .dst_array_element(0)
-                    .descriptor_count(1)
-                    .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-                    .image_info(&descriptor_image_infos)
-            ];
-
-            unsafe {
-                device.logical.update_descriptor_sets(&descriptor_write_sets, &[]);
-            }
-        }
-
-        descriptor_sets
-    }
 
     pub fn create_descriptor_set_layout(device: &DeviceBundle, descs: &[DescSetBinding]) -> vk::DescriptorSetLayout {
 

@@ -8,6 +8,7 @@ mod drawable;
 mod primitives;
 mod utils;
 
+use devices::record_player::RecordPlayer;
 use drawable::{drawable2d::Drawable2d, drawable_tex::DrawableTexture};
 use mesh::Rect;
 use primitives::texture2d::{PixelFormat, Texture2d};
@@ -32,12 +33,14 @@ struct App {
     base: VkBase,
     mesh_bundles: Vec<Drawable2d>,
     textures: Vec<DrawableTexture>,
+    video_device: RecordPlayer,
     graphics_pipelines: Vec<GraphicsPipelineBundle>,
     close: bool,
 }
 
 impl App {
     fn new(window: Window) -> Self {
+        let video_device = RecordPlayer::from_buffer(include_bytes!("../assets/recordings/record1.rdbin")).unwrap();
         let base = VkBase::new(window, 3);
 
         let graphics_pipelines = vec![
@@ -51,8 +54,8 @@ impl App {
             Drawable2d::new(&base.device, Rect::new(-0.25, -0.25, 0.5, 0.5, [0.0, 1.0, 1.0]))
         ];
 
-        let data: [u8; 320 * 320 * 4] = [255; 320 *320 * 4];
-        let texture = Texture2d::new(data.to_vec(), 320, 320, PixelFormat::RGBA);
+        let data = unsafe { video_device.current_frame[0..video_device.size() / 2].align_to::<u8>().1.to_vec() };
+        let texture = Texture2d::new(data, video_device.width(), video_device.height(), PixelFormat::Z16);
 
         //TODO: Cleanup descriptor pool
 
@@ -60,12 +63,13 @@ impl App {
         let ubo = graphics_pipelines[1].ubo.as_ref().unwrap();
 
         let textures = vec![
-            DrawableTexture::new(&base.device, base.descriptor_pool,  command_buffer, ubo[0], base.swapchain.images.len(), Rect::new(0.5, 0.5, 0.2, 0.2, [1.0, 1.0, 1.0]), texture)
+            DrawableTexture::new(&base.device, base.descriptor_pool,  command_buffer, ubo[0], base.swapchain.images.len(), Rect::new(-1.0, -1.0, 2.0, 2.0, [1.0, 1.0, 1.0]), texture)
         ];
 
         end_single_time_command(&base.device, base.spare_command.pool, base.device.present_queue, command_buffer);
 
         Self {
+            video_device,
             base,
             mesh_bundles,
             textures,
@@ -102,6 +106,11 @@ impl App {
         }
 
         let res = Drawable2d::update(&self.base.device, &command_buffers[0], &mut self.mesh_bundles);
+
+        if let Some(new_frame) = self.video_device.poll() {
+            self.textures[0].texture_data.update_data(new_frame);
+        }
+
         DrawableTexture::update(&self.base.device, command_buffers[0], &mut self.textures);
 
         unsafe { self.base.device.logical.end_command_buffer(command_buffers[0]).unwrap(); }
@@ -158,6 +167,7 @@ impl App {
         };
 
         self.base.begin_renderpass_command_buffer(&command_buffers[0], &self.base.framebuffers[image_index as usize]);
+        DrawableTexture::draw(&self.base.device, command_buffers[0], &self.graphics_pipelines[1], self.base.current_frame, &self.textures);
         Drawable2d::draw(&self.base.device, &command_buffers[0], &self.graphics_pipelines[0], &self.mesh_bundles);
         self.base.end_command_buffer(&command_buffers[0]);
 
@@ -288,6 +298,10 @@ impl Drop for App {
                 self.base.device.logical.free_memory(texture.vbo.memory, None);
                 self.base.device.logical.destroy_buffer(texture.texture.staging.buffer, None);
                 self.base.device.logical.free_memory(texture.texture.staging.memory, None);
+                self.base.device.logical.destroy_buffer(texture.coords.buffer, None);
+                self.base.device.logical.free_memory(texture.coords.memory, None);
+                self.base.device.logical.destroy_buffer(texture.ind.buffer, None);
+                self.base.device.logical.free_memory(texture.ind.memory, None);
                 self.base.device.logical.destroy_image(texture.texture.resource.image, None);
                 self.base.device.logical.free_memory(texture.texture.resource.memory, None);
                 self.base.device.logical.destroy_image_view(texture.texture.image_view, None);

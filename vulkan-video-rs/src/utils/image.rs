@@ -81,23 +81,27 @@ pub fn create_sampler(device: &DeviceBundle) -> Result<vk::Sampler> {
 }
 
 
-pub fn create_texture_image(device: &DeviceBundle, image_width: u32, image_height: u32, image_size: u64, format: vk::Format) -> TextureBundle {
+pub fn create_texture_image(device: &DeviceBundle, image_width: u32, image_height: u32, image_size: u64, format: PixelFormat) -> TextureBundle {
+
+    let (vk_format, aspect_flags) = format_properties(format);
+
     let required_memory_properties = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
     let staging = create_buffer(device, image_size, vk::BufferUsageFlags::TRANSFER_SRC, required_memory_properties).unwrap();
 
-    let resource = create_image(device, image_width, image_height, format,
+    let resource = create_image(device, image_width, image_height, vk_format,
                              vk::ImageTiling::OPTIMAL,
                              vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED,
                              vk::MemoryPropertyFlags::DEVICE_LOCAL).unwrap();
 
     let sampler = create_sampler(device).unwrap();
-    let image_view = create_image_view(device, &resource, vk::ImageAspectFlags::COLOR, 1).unwrap();
+    let image_view = create_image_view(device, &resource, aspect_flags, 1).unwrap();
 
     TextureBundle {
         resource,
         staging,
         sampler,
-        image_view
+        image_view,
+        aspect_flags
     }
 }
 
@@ -191,11 +195,11 @@ impl TransitionOpTrait for TransitionOp<ImageLayout_Undefined, ImageLayout_Color
 pub fn transition_image_layout<S: ImageLayout_Transition, D: ImageLayout_Transition>(
     device: &DeviceBundle,
     command_buffer: vk::CommandBuffer,
-    image: &ImageBundle,
+    texture: &TextureBundle,
 ) where TransitionOp<S, D>: TransitionOpTrait {
     let trans_params = <TransitionOp<S, D>>::get_transition_params();
 
-    let sub_res = vk::ImageSubresourceRange { aspect_mask: vk::ImageAspectFlags::COLOR, base_mip_level: 0, level_count: 1,
+    let sub_res = vk::ImageSubresourceRange { aspect_mask: texture.aspect_flags, base_mip_level: 0, level_count: 1,
                                               base_array_layer: 0, layer_count: 1 };
 
     let image_barriers = [
@@ -206,7 +210,7 @@ pub fn transition_image_layout<S: ImageLayout_Transition, D: ImageLayout_Transit
             .new_layout(D::layout())
             .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
             .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
-            .image(image.image)
+            .image(texture.resource.image)
             .subresource_range(sub_res)
     ];
 
@@ -250,13 +254,13 @@ pub fn end_single_time_command(device: &DeviceBundle, command_pool: vk::CommandP
 pub fn copy_buffer_to_image(
     device: &DeviceBundle,
     command_buffer: vk::CommandBuffer,
+    texture: &TextureBundle,
     buffer: vk::Buffer,
-    image: vk::Image,
     width: u32,
     height: u32,
 ) {
     let sub_res = vk::ImageSubresourceLayers {
-        aspect_mask: vk::ImageAspectFlags::COLOR,
+        aspect_mask: texture.aspect_flags,
         mip_level: 0,
         base_array_layer: 0,
         layer_count: 1,
@@ -273,7 +277,7 @@ pub fn copy_buffer_to_image(
         device.logical.cmd_copy_buffer_to_image(
             command_buffer,
             buffer,
-            image,
+            texture.resource.image,
             vk::ImageLayout::TRANSFER_DST_OPTIMAL,
             &buffer_image_regions,
         );
@@ -281,14 +285,9 @@ pub fn copy_buffer_to_image(
 }
 
 
-
-
-
-
-
-pub fn format(format: &PixelFormat) -> vk::Format {
+pub fn format_properties(format: PixelFormat) -> (vk::Format, vk::ImageAspectFlags) {
     match format {
-        PixelFormat::RGBA => vk::Format::R8G8B8A8_UINT,
-        PixelFormat::Z16 => vk::Format::D16_UNORM
+        PixelFormat::RGBA => (vk::Format::R8G8B8A8_SRGB, vk::ImageAspectFlags::COLOR),
+        PixelFormat::Z16 => (vk::Format::D16_UNORM, vk::ImageAspectFlags::DEPTH)
     }
 }

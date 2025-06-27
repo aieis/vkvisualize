@@ -1,5 +1,7 @@
 use anyhow::{anyhow, Result};
 
+use crate::primitives::texture2d::PixelFormat;
+
 #[allow(unused)]
 pub struct RecordData {
     pub width: u32,
@@ -22,13 +24,35 @@ impl RecordPlayer {
     pub fn new(file_path: &str) -> Result<RecordPlayer> {
         let record_data =  RecordData::from_file(file_path)?;
         let current_frame = record_data.get_frame(0);
+        Ok(RecordPlayer {
+            record_data,
+            stream_pos: 0,
+            current_frame,
+            last_frame_time: 0.0,
+        })
+    }
+
+    pub fn format(&self) -> PixelFormat { PixelFormat::Z16 }
+    pub fn width(&self) -> u32 { self.record_data.width }
+    pub fn height(&self) -> u32 { self.record_data.height }
+    pub fn size(&self) -> usize { (self.record_data.width * self.record_data.height) as usize * 2 }
+
+    pub fn from_buffer(buf: &[u8]) -> Result<RecordPlayer> {
+        let record_data =  RecordData::from_buffer(buf)?;
+        let current_frame = record_data.get_frame(0);
 
         Ok(RecordPlayer {
             record_data,
             stream_pos: 0,
             current_frame,
-            last_frame_time: 0.0
+            last_frame_time: 0.0,
         })
+    }
+
+    pub fn poll(&mut self) -> Option<Vec<u8>> {
+        let res = Some(self.record_data.get_frame_bytes(self.stream_pos));
+        self.stream_pos = (self.stream_pos + 1) % self.record_data.frame_count;
+        res
     }
 }
 
@@ -42,6 +66,20 @@ impl RecordData {
         let frame_size = (self.width * self.height) as usize;
         self.frame_data[frame_size*frame_num..frame_size*(frame_num+1)].to_vec()
     }
+
+    pub fn get_frame_bytes(&self, frame_num: usize) -> Vec<u8> {
+        if frame_num > self.frame_count {
+            eprintln!("Attempt to read frame {} from total frames {}", frame_num, self.frame_count);
+            return self.get_frame_bytes(0);
+        }
+
+        let frame_size = (self.width * self.height) as usize;
+        let frame = &self.frame_data[frame_size*frame_num..frame_size*(frame_num+1)];
+        unsafe {
+            frame.align_to::<u8>().1.to_vec()
+        }
+    }
+
 
     pub fn from_file(file_path: &str) -> Result<RecordData>{
         let buf = std::fs::read(file_path)?;
