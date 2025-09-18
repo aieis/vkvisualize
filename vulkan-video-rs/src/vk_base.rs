@@ -43,7 +43,7 @@ impl VkBase {
         let max_in_flight = if image_views.len() < max_in_flight { image_views.len() } else { max_in_flight };
 	let render_pass = VkBase::create_render_pass(&device, &swapchain);
 	let framebuffers = VkBase::create_framebuffers(&device, &render_pass, &image_views, &swapchain);
-	let commands = VkBase::create_command_pools(&device, max_in_flight, 1);
+	let commands = VkBase::create_command_pools(&device, image_views.len(), 1);
         let spare_command = VkBase::create_command_pools(&device, 1, max_in_flight).remove(0);
         let sync_objects = VkBase::create_sync_objects(&device, max_in_flight);
 
