@@ -1,4 +1,5 @@
 use ash::vk;
+use comptime_register_macro::register_shader;
 
 fn compile_shader_modules(device: &ash::Device, vertex_code: &[u8], fragment_code: &[u8]) -> (vk::ShaderModule, vk::ShaderModule) {
     let create_info = vk::ShaderModuleCreateInfo {
@@ -59,4 +60,17 @@ macro_rules! make_shader {
             ShaderComp { vertex_code, fragment_code  }
         }
     }
+}
+
+
+#[register_shader("rand_path")]
+pub struct SolidColor
+{
+
+}
+
+#[register_shader("rand_path")]
+pub struct Pcl
+{
+
 }

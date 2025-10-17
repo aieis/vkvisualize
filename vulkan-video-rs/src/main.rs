@@ -7,6 +7,7 @@ mod devices;
 mod drawable;
 mod primitives;
 mod utils;
+mod rhi;
 
 use devices::record_player::RecordPlayer;
 use drawable::{drawable2d::Drawable2d, drawable_tex::DrawableTexture};
@@ -29,6 +30,8 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
+use comptime_register_macro::shaders_generate_registry;
+
 struct App {
     base: VkBase,
     mesh_bundles: Vec<Drawable2d>,
@@ -38,8 +41,19 @@ struct App {
     close: bool,
 }
 
+use shader::*;
+
+shaders_generate_registry!();
+
 impl App {
     fn new(window: Window) -> Self {
+
+        let (paths, ids) = process_all_shaders();
+        for i in 0..paths.len() {
+            println!("Registered shader: ({}) {}", ids[i], paths[i]);
+        }
+
+        
         let video_device = RecordPlayer::from_buffer(include_bytes!("../assets/recordings/record1.rdbin")).unwrap();
         let base = VkBase::new(window, 3);
 
@@ -325,7 +339,7 @@ impl Drop for App {
 
 
 fn main() {
-    SimpleLogger::new().init().unwrap();
+    // SimpleLogger::new().init().unwrap();
 
     let event_loop = EventLoop::new().unwrap();
 

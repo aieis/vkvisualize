@@ -9,6 +9,8 @@ use crate::drawable::drawable_common::PipelineDescriptor;
 use ash::vk;
 use winit::{raw_window_handle::{HasDisplayHandle, HasWindowHandle}, window::Window};
 
+
+
 pub struct VkBase {
     pub _entry: ash::Entry,
     pub instance: ash::Instance,
@@ -209,7 +211,7 @@ impl VkBase {
             .application_version(0)
             .engine_name(app_name)
             .engine_version(0)
-            .api_version(vk::make_api_version(0, 1, 0, 0));
+            .api_version(vk::make_api_version(0, 1, 4, 0));
 
         let create_info = vk::InstanceCreateInfo::default()
             .application_info(&app_info)
@@ -758,7 +760,7 @@ unsafe extern "system" fn vulkan_debug_utils_callback(
         _ => "[Unknown]",
     };
     let message = CStr::from_ptr((*p_callback_data).p_message);
-    println!("[Debug]{}{}{:?}", severity, types, message);
+    println!("[Debug]{}{}{}", severity, types, message.to_string_lossy());
 
     vk::FALSE
 }
