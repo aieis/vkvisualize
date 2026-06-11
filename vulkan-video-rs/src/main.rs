@@ -17,7 +17,6 @@ use utils::image::{begin_single_time_command, end_single_time_command};
 use vk_bundles::*;
 
 use ash::vk;
-use simple_logger::SimpleLogger;
 
 use vk_base::VkBase;
 
@@ -49,16 +48,18 @@ impl App {
     fn new(window: Window) -> Self {
 
         let (paths, ids) = process_all_shaders();
-        for i in 0..paths.len() {
+
+        for i in 0..paths.len()
+        {
             println!("Registered shader: ({}) {}", ids[i], paths[i]);
         }
 
-        
+
         let video_device = RecordPlayer::from_buffer(include_bytes!("../assets/recordings/record1.rdbin")).unwrap();
         let base = VkBase::new(window, 3);
 
         let graphics_pipelines = vec![
-            base.create_graphics_pipeline(Drawable2d::pipeline_descriptor(), Box::from(make_shader!("triangle"))),
+            base.create_graphics_pipeline(Drawable2d::pipeline_descriptor()     , Box::from(make_shader!("triangle"))),
             base.create_graphics_pipeline(DrawableTexture::pipeline_descriptor(), Box::from(make_shader!("texture")))
         ];
 
@@ -104,49 +105,66 @@ impl App {
             return;
         }
 
-        let command_buffer = self.base.spare_command.buffers.pop();
-        if command_buffer.is_none() {
+        let cb = self.base.spare_command.buffers.pop();
+        if cb.is_none() {
             return;
         }
 
-        let command_buffers = [command_buffer.unwrap()];
+        let cb = cb.unwrap();
 
         let command_buffer_begin_info =  vk::CommandBufferBeginInfo::default()
             .flags(vk::CommandBufferUsageFlags::SIMULTANEOUS_USE);
 
         unsafe {
-            let _ = self.base.device.logical.reset_command_buffer(command_buffers[0], vk::CommandBufferResetFlags::empty());
-            self.base.device.logical.begin_command_buffer(command_buffers[0], &command_buffer_begin_info).unwrap();
+            let _ = self.base.device.logical.reset_command_buffer(cb, vk::CommandBufferResetFlags::empty());
+            self.base.device.logical.begin_command_buffer(cb, &command_buffer_begin_info).unwrap();
         }
 
-        let res = Drawable2d::update(&self.base.device, &command_buffers[0], &mut self.mesh_bundles);
+        let res = Drawable2d::update(&self.base.device, &cb, &mut self.mesh_bundles);
 
         if let Some(new_frame) = self.video_device.poll() {
             self.textures[0].texture_data.update_data(new_frame);
         }
 
-        DrawableTexture::update(&self.base.device, command_buffers[0], &mut self.textures);
+        DrawableTexture::update(&self.base.device, cb, &mut self.textures);
 
-        unsafe { self.base.device.logical.end_command_buffer(command_buffers[0]).unwrap(); }
+        unsafe { self.base.device.logical.end_command_buffer(cb).unwrap(); }
 
         if ! res {
-            self.base.spare_command.buffers.push(command_buffers[0]);
+            self.base.spare_command.buffers.push(cb);
             return;
         }
 
+        let cbs = [cb];
         let submit_info = vk::SubmitInfo::default()
-            .command_buffers(&command_buffers);
+            .command_buffers(&cbs);
 
         let fences = [self.base.sync_objects.spare_fences.pop().unwrap()];
         unsafe {
             self.base.device.logical.reset_fences(&fences).expect("Failed to reset fences.");
-	    self.base.device.logical.queue_submit(self.base.device.present_queue, &[submit_info], fences[0]).expect("Failure submitting to the queue.");
+            self.base.device.logical.queue_submit(self.base.device.present_queue, &[submit_info], fences[0]).expect("Failure submitting to the queue.");
         }
 
-        self.base.in_flight_buffers.push((command_buffers[0], fences[0]));
+        self.base.in_flight_buffers.push((cb, fences[0]));
     }
 
-    fn render(&mut self) {
+    fn render(&mut self)
+    {
+
+        let window_size = self.base.window.inner_size();
+
+        if window_size.width == 0 || window_size.height == 0
+        {
+            return;
+        }
+
+        if window_size.width != self.base.swapchain.extent.width || window_size.height != self.base.swapchain.extent.height
+        {
+            println!("Preemptive swapchain recreation.");
+            self.recreate_swapchain_and_pipelines();
+            return;
+        }
+
         let wait_fences = [self.base.sync_objects.in_flight_fences[self.base.current_frame]];
 
         let (image_index, _is_sub_optimal) = unsafe {
@@ -170,6 +188,7 @@ impl App {
             }
         };
 
+
         let wait_semaphores = [self.base.sync_objects.image_available_semaphores[self.base.current_frame]];
         let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
         let signal_semaphores = [self.base.sync_objects.render_finished_semaphores[self.base.current_frame]];
@@ -186,27 +205,29 @@ impl App {
         self.base.end_command_buffer(&command_buffers[0]);
 
         let submit_infos = [
-	    vk::SubmitInfo::default()
-		.wait_semaphores(&wait_semaphores)
-		.wait_dst_stage_mask(&wait_stages)
-		.command_buffers(&command_buffers)
-		.signal_semaphores(&signal_semaphores)
+            vk::SubmitInfo::default()
+                .wait_semaphores(&wait_semaphores)
+                .wait_dst_stage_mask(&wait_stages)
+                .command_buffers(&command_buffers)
+                .signal_semaphores(&signal_semaphores)
         ];
 
         unsafe {
             self.base.device.logical.reset_fences(&wait_fences).expect("Failed to reset Fence!");
-	    self.base.device.logical.queue_submit(self.base.device.present_queue, &submit_infos, self.base.sync_objects.in_flight_fences[self.base.current_frame],)
+            self.base.device.logical.queue_submit(self.base.device.present_queue, &submit_infos, self.base.sync_objects.in_flight_fences[self.base.current_frame],)
                 .expect("Failed to execute queue submit.");
         }
 
         let swapchains = [self.base.swapchain.swapchain];
 
-	let image_indices = [image_index];
+        let image_indices = [image_index];
 
         let present_info = vk::PresentInfoKHR::default()
-	    .wait_semaphores(&signal_semaphores)
-	    .swapchains(&swapchains)
+            .wait_semaphores(&signal_semaphores)
+            .swapchains(&swapchains)
             .image_indices(&image_indices);
+
+        self.base.window.pre_present_notify();
 
         let result =  unsafe { self.base.swapchain.loader.queue_present(self.base.device.present_queue, &present_info) };
 
@@ -225,6 +246,7 @@ impl App {
             self.base.recreate_swapchain();
             return self.render();
         }
+
     }
 
     fn handle_event(&mut self, event: WindowEvent) {
@@ -232,8 +254,8 @@ impl App {
             WindowEvent::CloseRequested => {
                 self.close = true;
             }
+
             WindowEvent::RedrawRequested => {
-                self.base.window.pre_present_notify();
                 self.update();
                 self.render();
             }
@@ -353,6 +375,7 @@ fn main() {
     let mut closing = false;
 
     let _ = event_loop.run(move |event, elwt| {
+        elwt.set_control_flow(winit::event_loop::ControlFlow::Poll);
         match event {
             Event::WindowEvent { event, window_id } if window_id == app.base.window.id() => {
                 app.handle_event(event);
@@ -361,7 +384,6 @@ fn main() {
             Event::AboutToWait => {
                 app.base.window.request_redraw();
             }
-
 
             _ => (),
         }

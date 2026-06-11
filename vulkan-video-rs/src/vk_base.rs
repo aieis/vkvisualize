@@ -38,16 +38,16 @@ impl VkBase {
         let (entry, instance) = VkBase::create_instance(&window);
         let (debug_utils_loader, debug_messenger) = VkBase::setup_validation(&entry, &instance);
 
-        let surface = VkBase::create_surface(&entry, &instance, &window);
-        let device = VkBase::select_phsyical_device(&instance, &surface);
-        let swapchain = VkBase::create_swapchain(&instance, &device, &surface, &window);
-        let image_views = VkBase::create_image_views(&device, &swapchain);
-        let max_in_flight = if image_views.len() < max_in_flight { image_views.len() } else { max_in_flight };
-	let render_pass = VkBase::create_render_pass(&device, &swapchain);
-	let framebuffers = VkBase::create_framebuffers(&device, &render_pass, &image_views, &swapchain);
-	let commands = VkBase::create_command_pools(&device, image_views.len(), 1);
-        let spare_command = VkBase::create_command_pools(&device, 1, max_in_flight).remove(0);
-        let sync_objects = VkBase::create_sync_objects(&device, max_in_flight);
+        let surface         = VkBase::create_surface(&entry, &instance, &window);
+        let device          = VkBase::select_phsyical_device(&instance, &surface);
+        let swapchain       = VkBase::create_swapchain(&instance, &device, &surface, &window, None);
+        let image_views     = VkBase::create_image_views(&device, &swapchain);
+        let max_in_flight   = if image_views.len() < max_in_flight { image_views.len() } else { max_in_flight };
+        let render_pass     = VkBase::create_render_pass(&device, &swapchain);
+        let framebuffers    = VkBase::create_framebuffers(&device, &render_pass, &image_views, &swapchain);
+        let commands        = VkBase::create_command_pools(&device, image_views.len(), 1);
+        let spare_command   = VkBase::create_command_pools(&device, 1, max_in_flight).remove(0);
+        let sync_objects    = VkBase::create_sync_objects(&device, max_in_flight);
 
         let descriptor_pool = VkBase::create_descriptor_pool(&device, swapchain.images.len());
 
@@ -63,17 +63,17 @@ impl VkBase {
             device,
             swapchain,
             image_views,
-	    render_pass,
+            render_pass,
 
-	    framebuffers,
+            framebuffers,
             commands,
             spare_command,
             in_flight_buffers: vec![],
 
             descriptor_pool,
 
-	    sync_objects,
-	    current_frame: 0,
+            sync_objects,
+            current_frame: 0,
             is_framebuffer_resized: false,
 
             window,
@@ -81,11 +81,13 @@ impl VkBase {
         }
     }
 
-    pub fn begin_renderpass_command_buffer(&self, command_buffer: &vk::CommandBuffer, framebuffer: &vk::Framebuffer) {
+    pub fn begin_renderpass_command_buffer(&self, command_buffer: &vk::CommandBuffer, framebuffer: &vk::Framebuffer)
+    {
         let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
-	    .flags(vk::CommandBufferUsageFlags::SIMULTANEOUS_USE);
+            .flags(vk::CommandBufferUsageFlags::SIMULTANEOUS_USE);
 
-        unsafe {
+        unsafe
+        {
             self.device.logical.begin_command_buffer(*command_buffer, &command_buffer_begin_info)
                 .expect("Failed to begin recording Command Buffer at beginning!");
         }
@@ -130,17 +132,31 @@ impl VkBase {
     }
 
     pub fn recreate_swapchain(&mut self) {
-        // parameters -------------
         unsafe { self.device.logical.device_wait_idle().expect("Failed to wait device idle!") };
-        self.cleanup_swapchain();
-        self.swapchain = VkBase::create_swapchain(&self.instance, &self.device, &self.surface, &self.window);
-        self.image_views = VkBase::create_image_views(&self.device, &self.swapchain);
-	self.render_pass = VkBase::create_render_pass(&self.device, &self.swapchain);
-        self.framebuffers = VkBase::create_framebuffers(&self.device, &self.render_pass, &self.image_views, &self.swapchain);
+
+        self.cleanup_swapchain_partial();
+
+        println!("Cleaning the swapchain");
+        let old_swapchain = Some(self.swapchain.swapchain);
+        self.swapchain    = VkBase::create_swapchain(&self.instance, &self.device, &self.surface, &self.window, old_swapchain);
+
+        println!("New swapchain");
+
+        self.image_views   = VkBase::create_image_views  (&self.device, &self.swapchain);
+        self.render_pass   = VkBase::create_render_pass  (&self.device, &self.swapchain);
+        self.framebuffers  = VkBase::create_framebuffers (&self.device, &self.render_pass, &self.image_views, &self.swapchain);
         self.max_in_flight = if self.image_views.len() < self.max_in_flight { self.image_views.len() } else { self.max_in_flight };
+
+        println!("Removing the old");
+
+        unsafe { self.swapchain.loader.destroy_swapchain(old_swapchain.unwrap(), None); };
+
+
+        println!("Cleaning the swapchain Complete");
+
     }
 
-    pub fn cleanup_swapchain(&self) {
+    pub fn cleanup_swapchain_partial(&self) {
         unsafe {
             for &framebuffer in self.framebuffers.iter() {
                 self.device.logical.destroy_framebuffer(framebuffer, None);
@@ -150,9 +166,12 @@ impl VkBase {
             for &image_view in self.image_views.iter() {
                 self.device.logical.destroy_image_view(image_view, None);
             }
-
-            self.swapchain.loader.destroy_swapchain(self.swapchain.swapchain, None);
         }
+    }
+
+    pub fn cleanup_swapchain(&self) {
+        self.cleanup_swapchain_partial();
+        unsafe { self.swapchain.loader.destroy_swapchain(self.swapchain.swapchain, None); };
     }
 
     pub fn cleanup_in_flight_buffers(&mut self) {
@@ -296,7 +315,7 @@ impl VkBase {
     }
 
     /* Setup the swapchain */
-    pub fn create_swapchain(instance: &ash::Instance, device: &DeviceBundle, surface: &SurfaceBundle, window: &Window) -> SwapchainBundle {
+    pub fn create_swapchain(instance: &ash::Instance, device: &DeviceBundle, surface: &SurfaceBundle, window: &Window, old_swapchain: Option<vk::SwapchainKHR>) -> SwapchainBundle {
 
         let surface_format = unsafe { surface.loader.get_physical_device_surface_formats(device.physical, surface.surface).unwrap()[0] };
 
@@ -348,6 +367,8 @@ impl VkBase {
             .clipped(true)
             .image_array_layers(1);
 
+        let swapchain_create_info = if let  Some(old_swapchain) = old_swapchain { swapchain_create_info.old_swapchain(old_swapchain)} else { swapchain_create_info };
+
         let swapchain = unsafe { swapchain_loader.create_swapchain(&swapchain_create_info, None).unwrap() };
         let present_images = unsafe { swapchain_loader.get_swapchain_images(swapchain).unwrap() };
 
@@ -360,7 +381,7 @@ impl VkBase {
         }
     }
 
-    pub fn create_image_views(device: &DeviceBundle, swapchain: &SwapchainBundle) -> Vec<vk::ImageView>{
+    pub fn create_image_views(device: &DeviceBundle, swapchain: &SwapchainBundle) -> Vec<vk::ImageView> {
         let mut present_image_views: Vec<vk::ImageView> = Vec::new();
         let rgba_component = vk::ComponentMapping {
             r: vk::ComponentSwizzle::R,
@@ -393,60 +414,60 @@ impl VkBase {
 
     /* Setup the graphics pipeline */
     pub fn create_graphics_pipeline_impl(device: &DeviceBundle, swapchain: &SwapchainBundle, renderpass: &vk::RenderPass, pipeline_desc: PipelineDescriptor, ubo: Option<Vec<vk::DescriptorSetLayout>>, shader: Box<dyn Shader>) -> GraphicsPipelineBundle {
-	let (shader_vertex, shader_fragment) = shader.compile(&device.logical);
+        let (shader_vertex, shader_fragment) = shader.compile(&device.logical);
         let main_function_name = CString::new("main").unwrap(); // the beginning function name in shader code.
-	let vertex_shader_stage = vk::PipelineShaderStageCreateInfo::default()
-	    .name(&main_function_name)
-	    .stage(vk::ShaderStageFlags::VERTEX)
-	    .module(shader_vertex);
+        let vertex_shader_stage = vk::PipelineShaderStageCreateInfo::default()
+            .name(&main_function_name)
+            .stage(vk::ShaderStageFlags::VERTEX)
+            .module(shader_vertex);
 
-	let fragment_shader_stage = vk::PipelineShaderStageCreateInfo::default()
-	    .name(&main_function_name)
-	    .stage(vk::ShaderStageFlags::FRAGMENT)
-	    .module(shader_fragment);
+        let fragment_shader_stage = vk::PipelineShaderStageCreateInfo::default()
+            .name(&main_function_name)
+            .stage(vk::ShaderStageFlags::FRAGMENT)
+            .module(shader_fragment);
 
-	let shader_stage_create_infos = [vertex_shader_stage, fragment_shader_stage];
+        let shader_stage_create_infos = [vertex_shader_stage, fragment_shader_stage];
 
         let vertex_input_state_info = vk::PipelineVertexInputStateCreateInfo::default()
             .vertex_binding_descriptions(&pipeline_desc.vertex_bindings)
             .vertex_attribute_descriptions(&pipeline_desc.vertex_attributes);
 
-	let vertex_input_assembly_state_info = vk::PipelineInputAssemblyStateCreateInfo::default()
-	    .topology(vk::PrimitiveTopology::TRIANGLE_LIST)
-	    .primitive_restart_enable(false);
+        let vertex_input_assembly_state_info = vk::PipelineInputAssemblyStateCreateInfo::default()
+            .topology(vk::PrimitiveTopology::TRIANGLE_LIST)
+            .primitive_restart_enable(false);
 
-	let viewports = [vk::Viewport {
-	    x: 0.0,
-	    y: 0.0,
-	    width: swapchain.extent.width as f32,
-	    height: swapchain.extent.height as f32,
-	    min_depth: 0.0,
-	    max_depth: 1.0
-	}];
+        let viewports = [vk::Viewport {
+            x: 0.0,
+            y: 0.0,
+            width: swapchain.extent.width as f32,
+            height: swapchain.extent.height as f32,
+            min_depth: 0.0,
+            max_depth: 1.0
+        }];
 
-	let scissors = [vk::Rect2D {
-	    offset: vk::Offset2D {x: 0, y: 0},
-	    extent: swapchain.extent
-	}];
+        let scissors = [vk::Rect2D {
+            offset: vk::Offset2D {x: 0, y: 0},
+            extent: swapchain.extent
+        }];
 
-	// let dynamic_states = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
-	let dynamic_state_info = vk::PipelineDynamicStateCreateInfo::default();
-	//.dynamic_states(&dynamic_states);
+        // let dynamic_states = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
+        let dynamic_state_info = vk::PipelineDynamicStateCreateInfo::default();
+        //.dynamic_states(&dynamic_states);
 
-	let viewport_state_info = vk::PipelineViewportStateCreateInfo::default()
-	    .viewports(&viewports)
-	    .scissors(&scissors);
+        let viewport_state_info = vk::PipelineViewportStateCreateInfo::default()
+            .viewports(&viewports)
+            .scissors(&scissors);
 
-	let rasterization_info = vk::PipelineRasterizationStateCreateInfo::default()
-	    .cull_mode(vk::CullModeFlags::BACK)
-	    .front_face(vk::FrontFace::CLOCKWISE)
-	    .polygon_mode(vk::PolygonMode::FILL)
-	    .depth_clamp_enable(false)
-	    .rasterizer_discard_enable(false)
-	    .line_width(1.0);
+        let rasterization_info = vk::PipelineRasterizationStateCreateInfo::default()
+            .cull_mode(vk::CullModeFlags::BACK)
+            .front_face(vk::FrontFace::CLOCKWISE)
+            .polygon_mode(vk::PolygonMode::FILL)
+            .depth_clamp_enable(false)
+            .rasterizer_discard_enable(false)
+            .line_width(1.0);
 
-	let multisample_state_info = vk::PipelineMultisampleStateCreateInfo::default()
-	    .rasterization_samples(vk::SampleCountFlags::TYPE_1);
+        let multisample_state_info = vk::PipelineMultisampleStateCreateInfo::default()
+            .rasterization_samples(vk::SampleCountFlags::TYPE_1);
 
         let stencil_state = vk::StencilOpState {
             fail_op: vk::StencilOp::KEEP,
@@ -479,11 +500,11 @@ impl VkBase {
             color_write_mask: vk::ColorComponentFlags::RGBA,
         }];
 
-	let color_blend_state = vk::PipelineColorBlendStateCreateInfo::default()
+        let color_blend_state = vk::PipelineColorBlendStateCreateInfo::default()
             .logic_op(vk::LogicOp::CLEAR)
             .attachments(&color_blend_attachment_states);
 
-	let mut layout_create_info = vk::PipelineLayoutCreateInfo::default();
+        let mut layout_create_info = vk::PipelineLayoutCreateInfo::default();
         if let Some(ubo) = ubo.as_ref() {
             layout_create_info = layout_create_info.set_layouts(&ubo);
         }
@@ -491,17 +512,17 @@ impl VkBase {
         let pipeline_layout = unsafe { device.logical.create_pipeline_layout(&layout_create_info, None).unwrap() };
 
         let graphic_pipeline_infos = [vk::GraphicsPipelineCreateInfo::default()
-            .stages(&shader_stage_create_infos)
-            .vertex_input_state(&vertex_input_state_info)
-            .input_assembly_state(&vertex_input_assembly_state_info)
-            .viewport_state(&viewport_state_info)
-            .rasterization_state(&rasterization_info)
-            .multisample_state(&multisample_state_info)
-            .depth_stencil_state(&depth_state_create_info)
-            .color_blend_state(&color_blend_state)
-            .dynamic_state(&dynamic_state_info)
-            .layout(pipeline_layout)
-            .render_pass(*renderpass)];
+                                      .stages(&shader_stage_create_infos)
+                                      .vertex_input_state(&vertex_input_state_info)
+                                      .input_assembly_state(&vertex_input_assembly_state_info)
+                                      .viewport_state(&viewport_state_info)
+                                      .rasterization_state(&rasterization_info)
+                                      .multisample_state(&multisample_state_info)
+                                      .depth_stencil_state(&depth_state_create_info)
+                                      .color_blend_state(&color_blend_state)
+                                      .dynamic_state(&dynamic_state_info)
+                                      .layout(pipeline_layout)
+                                      .render_pass(*renderpass)];
 
         let graphics_pipelines = unsafe {
             device.logical.create_graphics_pipelines(vk::PipelineCache::null(), &graphic_pipeline_infos, None)
@@ -516,8 +537,8 @@ impl VkBase {
 
         GraphicsPipelineBundle {
             shader,
-	    graphics: graphics_pipelines[0],
-	    layout: pipeline_layout,
+            graphics: graphics_pipelines[0],
+            layout: pipeline_layout,
             ubo,
             pipeline_desc
         }
@@ -535,18 +556,18 @@ impl VkBase {
             .final_layout(vk::ImageLayout::PRESENT_SRC_KHR);
 
         let color_attachment_ref = [vk::AttachmentReference::default()
-            .attachment(0)
-            .layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)];
+                                    .attachment(0)
+                                    .layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)];
 
         let subpass = [vk::SubpassDescription::default()
-	    .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)
-	    .color_attachments(&color_attachment_ref)];
+                       .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)
+                       .color_attachments(&color_attachment_ref)];
 
         let render_pass_attachments = [color_attachment];
 
         let renderpass_create_info = vk::RenderPassCreateInfo::default()
-	    .attachments(&render_pass_attachments)
-	    .subpasses(&subpass);
+            .attachments(&render_pass_attachments)
+            .subpasses(&subpass);
 
         unsafe {
             device.logical.create_render_pass(&renderpass_create_info, None)
@@ -555,15 +576,15 @@ impl VkBase {
     }
 
     pub fn create_framebuffers(device: &DeviceBundle, render_pass: &vk::RenderPass, image_views: &Vec<vk::ImageView>, swapchain: &SwapchainBundle) -> Vec<vk::Framebuffer>{
-	let mut framebuffers = vec![];
+        let mut framebuffers = vec![];
 
-	for &image_view in image_views.iter() {
+        for &image_view in image_views.iter() {
             let attachments = [image_view];
 
             let framebuffer_create_info = vk::FramebufferCreateInfo::default()
                 .render_pass(*render_pass)
-		.attachments(&attachments)
-		.width(swapchain.extent.width)
+                .attachments(&attachments)
+                .width(swapchain.extent.width)
                 .height(swapchain.extent.height)
                 .layers(1);
 
@@ -573,15 +594,15 @@ impl VkBase {
             };
 
             framebuffers.push(framebuffer);
-	}
+        }
 
-	framebuffers
+        framebuffers
     }
 
     pub fn create_command_pools(device: &DeviceBundle, num: usize, num_buffers: usize) -> Vec<CommandBundle> {
         let command_pool_create_info = vk::CommandPoolCreateInfo::default()
             .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER)
-	    .queue_family_index(device.queue_family_index);
+            .queue_family_index(device.queue_family_index);
 
         let mut commands = Vec::new();
 
@@ -644,7 +665,9 @@ impl VkBase {
 
     /* Create descriptor sets */
     fn create_descriptor_pool(device: &DeviceBundle, swapchain_images_size: usize) -> vk::DescriptorPool {
-        let pool_sizes = [vk::DescriptorPoolSize::default().descriptor_count(swapchain_images_size as u32)];
+        let pool_sizes = [
+            vk::DescriptorPoolSize { descriptor_count: swapchain_images_size as u32, ty: vk::DescriptorType::COMBINED_IMAGE_SAMPLER },
+        ];
         let descriptor_pool_create_info = vk::DescriptorPoolCreateInfo::default()
             .flags(vk::DescriptorPoolCreateFlags::empty())
             .max_sets(swapchain_images_size as u32)
@@ -680,8 +703,8 @@ impl VkBase {
     /* Setup validation layer callbacks */
     pub fn setup_validation(entry: &ash::Entry, instance: &ash::Instance) -> (debug_utils::Instance, vk::DebugUtilsMessengerEXT) {
         let message_severity = vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
-            // | vk::DebugUtilsMessageSeverityFlagsEXT::VERBOSE
-            // | vk::DebugUtilsMessageSeverityFlagsEXT::INFO
+        // | vk::DebugUtilsMessageSeverityFlagsEXT::VERBOSE
+        // | vk::DebugUtilsMessageSeverityFlagsEXT::INFO
             | vk::DebugUtilsMessageSeverityFlagsEXT::ERROR;
 
         let message_type = vk::DebugUtilsMessageTypeFlagsEXT::GENERAL

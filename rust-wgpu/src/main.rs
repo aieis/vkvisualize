@@ -21,7 +21,7 @@ pub fn main() {
     let app = app::App::new();
     let mut state = graphics::State::new(&window, app);
 
-    let _ = 
+    let _ =
     event_loop.run(move |event, control_flow| {
         match event {
             Event::WindowEvent {
@@ -32,5 +32,5 @@ pub fn main() {
             },
             _ => {}
         }
-    });    
+    });
 }
