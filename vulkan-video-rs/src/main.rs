@@ -177,7 +177,7 @@ impl App {
                 vk::Fence::null());
 
             match result {
-                Ok(image_index) => image_index,
+                Ok(image_index_info) => image_index_info,
                 Err(vk_result) => match vk_result {
                     vk::Result::ERROR_OUT_OF_DATE_KHR => {
                         self.recreate_swapchain_and_pipelines();
@@ -191,7 +191,7 @@ impl App {
 
         let wait_semaphores = [self.base.sync_objects.image_available_semaphores[self.base.current_frame]];
         let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
-        let signal_semaphores = [self.base.sync_objects.render_finished_semaphores[self.base.current_frame]];
+        let signal_semaphores = [self.base.sync_objects.render_finished_semaphores[image_index as usize]];
 
         let command_buffers = [self.base.commands[image_index as usize].buffers[0]];
 
