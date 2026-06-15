@@ -31,6 +31,9 @@ pub struct VkBase {
     pub is_framebuffer_resized: bool,
     pub window: Window,
     pub max_in_flight: usize,
+
+    pub graphics_pipelines: Vec<GraphicsPipelineBundle>,
+
 }
 
 impl VkBase {
@@ -77,18 +80,63 @@ impl VkBase {
             is_framebuffer_resized: false,
 
             window,
-            max_in_flight
+            max_in_flight,
+
+            graphics_pipelines: vec![]
         }
     }
 
-    pub fn begin_renderpass_command_buffer(&self, command_buffer: &vk::CommandBuffer, framebuffer: &vk::Framebuffer)
+    pub fn begin_renderpass_command_buffer(&mut self) -> Option<(vk::CommandBuffer, u32)>
     {
+        let window_size = self.window.inner_size();
+
+        if window_size.width == 0 || window_size.height == 0
+        {
+            return None;
+        }
+
+        if window_size.width != self.swapchain.extent.width || window_size.height != self.swapchain.extent.height
+        {
+            self.recreate_swapchain_and_pipelines();
+            return None;
+        }
+
+        let wait_fences = [self.sync_objects.in_flight_fences[self.current_frame]];
+
+        let (image_index, _is_sub_optimal) = unsafe {
+            self.device.logical.wait_for_fences(&wait_fences, true, std::u64::MAX)
+                .expect("Failed to wait for Fence!");
+
+            let result = self.swapchain.loader.acquire_next_image(
+                self.swapchain.swapchain, std::u64::MAX,
+                self.sync_objects.image_available_semaphores[self.current_frame],
+                vk::Fence::null());
+
+            match result {
+                Ok(image_index_info) => image_index_info,
+                Err(vk_result) => match vk_result {
+                    vk::Result::ERROR_OUT_OF_DATE_KHR => {
+                        self.recreate_swapchain_and_pipelines();
+                        return None;
+                    }
+                    _ => panic!("Failed to acquire swapchain image!"),
+                },
+            }
+        };
+
+        let cb = self.commands[image_index as usize].buffers[0];
+
+        unsafe {
+            self.device.logical.reset_command_buffer(cb, vk::CommandBufferResetFlags::empty()).expect("Failed to reset command buffer.");
+        };
+
+
         let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
             .flags(vk::CommandBufferUsageFlags::SIMULTANEOUS_USE);
 
         unsafe
         {
-            self.device.logical.begin_command_buffer(*command_buffer, &command_buffer_begin_info)
+            self.device.logical.begin_command_buffer(cb, &command_buffer_begin_info)
                 .expect("Failed to begin recording Command Buffer at beginning!");
         }
 
@@ -98,33 +146,96 @@ impl VkBase {
             },
         }];
 
+        let framebuffer = self.framebuffers[image_index as usize];
+
         let render_pass_begin_info = vk::RenderPassBeginInfo::default()
             .render_pass(self.render_pass)
-            .framebuffer(*framebuffer)
+            .framebuffer(framebuffer)
             .render_area(vk::Rect2D { offset: vk::Offset2D { x: 0, y: 0 }, extent: self.swapchain.extent})
             .clear_values(&clear_values);
 
         unsafe {
-            self.device.logical.cmd_begin_render_pass(*command_buffer, &render_pass_begin_info, vk::SubpassContents::INLINE);
+            self.device.logical.cmd_begin_render_pass(cb, &render_pass_begin_info, vk::SubpassContents::INLINE);
         }
+
+        return Some((cb, image_index));
     }
 
 
-    pub fn end_command_buffer(&self, command_buffer: &vk::CommandBuffer) {
-        let command_buffer = *command_buffer;
+    pub fn render(&mut self, cb: &vk::CommandBuffer, image_index: u32)
+    {
+        let cb = *cb;
+
+        let wait_fences = [self.sync_objects.in_flight_fences[self.current_frame]];
+        let wait_semaphores = [self.sync_objects.image_available_semaphores[self.current_frame]];
+        let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
+        let signal_semaphores = [self.sync_objects.render_finished_semaphores[image_index as usize]];
+
         unsafe {
-            self.device.logical.cmd_end_render_pass(command_buffer);
-            let _ = self.device.logical.end_command_buffer(command_buffer);
+            self.device.logical.cmd_end_render_pass(cb);
+            let _ = self.device.logical.end_command_buffer(cb);
         }
+
+        let cbs = [cb];
+        let submit_infos = [
+            vk::SubmitInfo::default()
+                .wait_semaphores(&wait_semaphores)
+                .wait_dst_stage_mask(&wait_stages)
+                .command_buffers(&cbs)
+                .signal_semaphores(&signal_semaphores)
+        ];
+
+        unsafe {
+            self.device.logical.reset_fences(&wait_fences).expect("Failed to reset Fence!");
+            self.device.logical.queue_submit(self.device.present_queue, &submit_infos, self.sync_objects.in_flight_fences[self.current_frame],)
+                .expect("Failed to execute queue submit.");
+        }
+
+        let swapchains = [self.swapchain.swapchain];
+
+        let image_indices = [image_index];
+
+        let present_info = vk::PresentInfoKHR::default()
+            .wait_semaphores(&signal_semaphores)
+            .swapchains(&swapchains)
+            .image_indices(&image_indices);
+
+        self.window.pre_present_notify();
+
+        let result =  unsafe { self.swapchain.loader.queue_present(self.device.present_queue, &present_info) };
+
+        let is_resized = match result {
+            Ok(_) => self.is_framebuffer_resized,
+            Err(vk_result) => match vk_result {
+                vk::Result::ERROR_OUT_OF_DATE_KHR | vk::Result::SUBOPTIMAL_KHR => true,
+                _ => panic!("Failed to execute queue present."),
+            },
+        };
+
+        self.current_frame = (self.current_frame + 1) % self.max_in_flight;
+
+        if is_resized {
+            self.is_framebuffer_resized = false;
+            self.recreate_swapchain();
+            // self.render
+        }
+
     }
 
-    pub fn create_graphics_pipeline(&self, pipeline_desc: PipelineDescriptor, shader: Box<dyn Shader>) -> GraphicsPipelineBundle {
+    pub fn create_graphics_pipeline(&mut self, pipeline_desc: PipelineDescriptor, shader: Box<dyn Shader>) -> usize
+    {
         // TODO: ubo_set_layout should probably be created externally.
         let ubo = if pipeline_desc.ubo_layout_bindings.len() == 0 { None } else {
             Some(vec![Self::create_descriptor_set_layout(&self.device, &pipeline_desc.ubo_layout_bindings)])
         };
 
-        return VkBase::create_graphics_pipeline_impl(&self.device, &self.swapchain, &self.render_pass, pipeline_desc, ubo, shader);
+        let pso = VkBase::create_graphics_pipeline_impl(&self.device, &self.swapchain, &self.render_pass, pipeline_desc, ubo, shader);
+
+        let idx = self.graphics_pipelines.len();
+
+        self.graphics_pipelines.push(pso);
+
+        return idx;
     }
 
     pub fn recreate_graphics_pipeline(&self, graphics_pipeline: GraphicsPipelineBundle) -> GraphicsPipelineBundle {
@@ -136,25 +247,40 @@ impl VkBase {
 
         self.cleanup_swapchain_partial();
 
-        println!("Cleaning the swapchain");
         let old_swapchain = Some(self.swapchain.swapchain);
         self.swapchain    = VkBase::create_swapchain(&self.instance, &self.device, &self.surface, &self.window, old_swapchain);
-
-        println!("New swapchain");
 
         self.image_views   = VkBase::create_image_views  (&self.device, &self.swapchain);
         self.render_pass   = VkBase::create_render_pass  (&self.device, &self.swapchain);
         self.framebuffers  = VkBase::create_framebuffers (&self.device, &self.render_pass, &self.image_views, &self.swapchain);
         self.max_in_flight = if self.image_views.len() < self.max_in_flight { self.image_views.len() } else { self.max_in_flight };
 
-        println!("Removing the old");
-
         unsafe { self.swapchain.loader.destroy_swapchain(old_swapchain.unwrap(), None); };
-
-
-        println!("Cleaning the swapchain Complete");
-
     }
+
+    fn recreate_swapchain_and_pipelines(&mut self) {
+        // TODO: Pushing and popping will be bad when there are more graphics
+
+        self.recreate_swapchain();
+
+        let count = self.graphics_pipelines.len();
+
+        let mut new_pipes = Vec::new();
+
+        for _ in 0..count {
+            let graphics_pipeline = self.graphics_pipelines.remove(0);
+            unsafe {
+                self.device.logical.destroy_pipeline(graphics_pipeline.graphics, None);
+                self.device.logical.destroy_pipeline_layout(graphics_pipeline.layout, None);
+            }
+
+            let graphics_pipeline = self.recreate_graphics_pipeline(graphics_pipeline);
+            new_pipes.push(graphics_pipeline);
+        }
+
+        self.graphics_pipelines = new_pipes;
+    }
+
 
     pub fn cleanup_swapchain_partial(&self) {
         unsafe {

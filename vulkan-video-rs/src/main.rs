@@ -36,7 +36,6 @@ struct App {
     mesh_bundles: Vec<Drawable2d>,
     textures: Vec<DrawableTexture>,
     video_device: RecordPlayer,
-    graphics_pipelines: Vec<GraphicsPipelineBundle>,
     close: bool,
 }
 
@@ -56,12 +55,10 @@ impl App {
 
 
         let video_device = RecordPlayer::from_buffer(include_bytes!("../assets/recordings/record1.rdbin")).unwrap();
-        let base = VkBase::new(window, 3);
+        let mut base = VkBase::new(window, 3);
 
-        let graphics_pipelines = vec![
-            base.create_graphics_pipeline(Drawable2d::pipeline_descriptor()     , Box::from(make_shader!("triangle"))),
-            base.create_graphics_pipeline(DrawableTexture::pipeline_descriptor(), Box::from(make_shader!("texture")))
-        ];
+        base.create_graphics_pipeline(Drawable2d::pipeline_descriptor()     , Box::from(make_shader!("triangle")));
+        base.create_graphics_pipeline(DrawableTexture::pipeline_descriptor(), Box::from(make_shader!("texture")));
 
         let mesh_bundles = vec![
             Drawable2d::new(&base.device, Rect::new(-0.9, -0.9, 0.5, 0.5, [1.0, 0.0, 0.0])),
@@ -75,7 +72,7 @@ impl App {
         //TODO: Cleanup descriptor pool
 
         let command_buffer = begin_single_time_command(&base.device, base.spare_command.pool);
-        let ubo = graphics_pipelines[1].ubo.as_ref().unwrap();
+        let ubo = base.graphics_pipelines[1].ubo.as_ref().unwrap();
 
         let textures = vec![
             DrawableTexture::new(&base.device, base.descriptor_pool,  command_buffer, ubo[0], base.swapchain.images.len(), Rect::new(-1.0, -1.0, 2.0, 2.0, [1.0, 1.0, 1.0]), texture)
@@ -88,7 +85,6 @@ impl App {
             base,
             mesh_bundles,
             textures,
-            graphics_pipelines,
             close: false
         }
     }
@@ -151,102 +147,17 @@ impl App {
     fn render(&mut self)
     {
 
-        let window_size = self.base.window.inner_size();
-
-        if window_size.width == 0 || window_size.height == 0
+        let cb_data = self.base.begin_renderpass_command_buffer();
+        if cb_data.is_none()
         {
             return;
         }
 
-        if window_size.width != self.base.swapchain.extent.width || window_size.height != self.base.swapchain.extent.height
-        {
-            println!("Preemptive swapchain recreation.");
-            self.recreate_swapchain_and_pipelines();
-            return;
-        }
+        let (cb, image_index) = cb_data.unwrap();
 
-        let wait_fences = [self.base.sync_objects.in_flight_fences[self.base.current_frame]];
-
-        let (image_index, _is_sub_optimal) = unsafe {
-            self.base.device.logical.wait_for_fences(&wait_fences, true, std::u64::MAX)
-                .expect("Failed to wait for Fence!");
-
-            let result = self.base.swapchain.loader.acquire_next_image(
-                self.base.swapchain.swapchain, std::u64::MAX,
-                self.base.sync_objects.image_available_semaphores[self.base.current_frame],
-                vk::Fence::null());
-
-            match result {
-                Ok(image_index_info) => image_index_info,
-                Err(vk_result) => match vk_result {
-                    vk::Result::ERROR_OUT_OF_DATE_KHR => {
-                        self.recreate_swapchain_and_pipelines();
-                        return;
-                    }
-                    _ => panic!("Failed to acquire swapchain image!"),
-                },
-            }
-        };
-
-
-        let wait_semaphores = [self.base.sync_objects.image_available_semaphores[self.base.current_frame]];
-        let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
-        let signal_semaphores = [self.base.sync_objects.render_finished_semaphores[image_index as usize]];
-
-        let command_buffers = [self.base.commands[image_index as usize].buffers[0]];
-
-        unsafe {
-            self.base.device.logical.reset_command_buffer(command_buffers[0], vk::CommandBufferResetFlags::empty()).expect("Failed to reset command buffer.");
-        };
-
-        self.base.begin_renderpass_command_buffer(&command_buffers[0], &self.base.framebuffers[image_index as usize]);
-        DrawableTexture::draw(&self.base.device, command_buffers[0], &self.graphics_pipelines[1], self.base.current_frame, &self.textures);
-        Drawable2d::draw(&self.base.device, &command_buffers[0], &self.graphics_pipelines[0], &self.mesh_bundles);
-        self.base.end_command_buffer(&command_buffers[0]);
-
-        let submit_infos = [
-            vk::SubmitInfo::default()
-                .wait_semaphores(&wait_semaphores)
-                .wait_dst_stage_mask(&wait_stages)
-                .command_buffers(&command_buffers)
-                .signal_semaphores(&signal_semaphores)
-        ];
-
-        unsafe {
-            self.base.device.logical.reset_fences(&wait_fences).expect("Failed to reset Fence!");
-            self.base.device.logical.queue_submit(self.base.device.present_queue, &submit_infos, self.base.sync_objects.in_flight_fences[self.base.current_frame],)
-                .expect("Failed to execute queue submit.");
-        }
-
-        let swapchains = [self.base.swapchain.swapchain];
-
-        let image_indices = [image_index];
-
-        let present_info = vk::PresentInfoKHR::default()
-            .wait_semaphores(&signal_semaphores)
-            .swapchains(&swapchains)
-            .image_indices(&image_indices);
-
-        self.base.window.pre_present_notify();
-
-        let result =  unsafe { self.base.swapchain.loader.queue_present(self.base.device.present_queue, &present_info) };
-
-        let is_resized = match result {
-            Ok(_) => self.base.is_framebuffer_resized,
-            Err(vk_result) => match vk_result {
-                vk::Result::ERROR_OUT_OF_DATE_KHR | vk::Result::SUBOPTIMAL_KHR => true,
-                _ => panic!("Failed to execute queue present."),
-            },
-        };
-
-        self.base.current_frame = (self.base.current_frame + 1) % self.base.max_in_flight;
-
-        if is_resized {
-            self.base.is_framebuffer_resized = false;
-            self.base.recreate_swapchain();
-            return self.render();
-        }
-
+        DrawableTexture::draw(&self.base.device, cb, &self.base.graphics_pipelines[1], self.base.current_frame, &self.textures);
+        Drawable2d::draw(&self.base.device, &cb, &self.base.graphics_pipelines[0], &self.mesh_bundles);
+        self.base.render(&cb, image_index);
     }
 
     fn handle_event(&mut self, event: WindowEvent) {
@@ -286,29 +197,6 @@ impl App {
             _ => {}
         }
     }
-
-    fn recreate_swapchain_and_pipelines(&mut self) {
-        // TODO: Pushing and popping will be bad when there are more graphics
-
-        self.base.recreate_swapchain();
-
-        let count = self.graphics_pipelines.len();
-
-        let mut new_pipes = Vec::new();
-
-        for _ in 0..count {
-            let graphics_pipeline = self.graphics_pipelines.remove(0);
-            unsafe {
-                self.base.device.logical.destroy_pipeline(graphics_pipeline.graphics, None);
-                self.base.device.logical.destroy_pipeline_layout(graphics_pipeline.layout, None);
-            }
-
-            let graphics_pipeline = self.base.recreate_graphics_pipeline(graphics_pipeline);
-            new_pipes.push(graphics_pipeline);
-        }
-
-        self.graphics_pipelines = new_pipes;
-    }
 }
 
 impl Drop for App {
@@ -344,15 +232,15 @@ impl Drop for App {
                 self.base.device.logical.destroy_sampler(texture.texture.sampler, None);
             }
 
-            for i in 0..self.graphics_pipelines.len() {
-                if let Some(ubo) = self.graphics_pipelines[i].ubo.as_ref() {
+            for i in 0..self.base.graphics_pipelines.len() {
+                if let Some(ubo) = self.base.graphics_pipelines[i].ubo.as_ref() {
                     for ubo_elem in ubo {
                         self.base.device.logical.destroy_descriptor_set_layout(*ubo_elem, None)
                     }
                 }
 
-                self.base.device.logical.destroy_pipeline(self.graphics_pipelines[i].graphics, None);
-                self.base.device.logical.destroy_pipeline_layout(self.graphics_pipelines[i].layout, None);
+                self.base.device.logical.destroy_pipeline(self.base.graphics_pipelines[i].graphics, None);
+                self.base.device.logical.destroy_pipeline_layout(self.base.graphics_pipelines[i].layout, None);
             }
 
         }
