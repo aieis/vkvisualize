@@ -8,11 +8,13 @@ mod drawable;
 mod primitives;
 mod utils;
 mod rhi;
+mod scene_extensions;
 
 use devices::record_player::RecordPlayer;
 use drawable::{drawable_mesh::DrawableMesh, drawable_tex::DrawableTexture, drawable2d::Drawable2d};
 use mesh::{Rect, Cube};
 use primitives::texture2d::{PixelFormat, Texture2d};
+use scene_extensions::simple_scene::SimpleScene;
 use utils::image::{begin_single_time_command, end_single_time_command};
 use vk_bundles::*;
 
@@ -36,6 +38,7 @@ struct App {
     rect_bundles: Vec<Drawable2d>,
     mesh_bundles: Vec<DrawableMesh>,
     textures: Vec<DrawableTexture>,
+    scenes: Vec<SimpleScene>,
     video_device: RecordPlayer,
     close: bool
 }
@@ -78,6 +81,10 @@ impl App {
             DrawableMesh::new(&base.device, Cube::new(0.0, 0.0, 0.25, 0.5, [1.0, 0.2, 1.0]))
         ];
 
+        let scenes = vec![
+            SimpleScene::new(&base, 2)
+        ];
+
         let data = unsafe { video_device.current_frame[0..video_device.size() / 2].align_to::<u8>().1.to_vec() };
         let texture = Texture2d::new(data, video_device.width(), video_device.height(), PixelFormat::Z16);
 
@@ -98,6 +105,7 @@ impl App {
             rect_bundles,
             mesh_bundles,
             textures,
+            scenes,
             close: false
         }
     }
@@ -131,6 +139,8 @@ impl App {
 
         Drawable2d::update(&self.base.device, &cb, &mut self.rect_bundles);
         DrawableMesh::update(&self.base.device, &cb, &mut self.mesh_bundles);
+
+        SimpleScene::update(&self.base, &cb, &mut self.scenes);
 
 
         if let Some(new_frame) = self.video_device.poll() {
@@ -168,6 +178,7 @@ impl App {
         DrawableTexture::draw(&self.base.device, cb, &self.base.graphics_pipelines[1], self.base.current_frame, &self.textures);
         Drawable2d::draw(&self.base.device, &cb, &self.base.graphics_pipelines[0], &self.rect_bundles);
         DrawableMesh::draw(&self.base.device, &cb, &self.base.graphics_pipelines[2], &self.mesh_bundles);
+        SimpleScene::draw(&mut self.base, &cb, &self.scenes);
         self.base.render(&cb, image_index);
     }
 
@@ -217,42 +228,17 @@ impl Drop for App {
             let _ = self.base.device.logical.device_wait_idle();
 
 
-            for mesh in self.rect_bundles.iter() {
-                self.base.device.logical.destroy_buffer(mesh.vbo.buffer, None);
-                self.base.device.logical.free_memory(mesh.vbo.memory, None);
-                self.base.device.logical.destroy_buffer(mesh.staging.buffer, None);
-                self.base.device.logical.free_memory(mesh.staging.memory, None);
-                self.base.device.logical.destroy_buffer(mesh.col.buffer, None);
-                self.base.device.logical.free_memory(mesh.col.memory, None);
-                self.base.device.logical.destroy_buffer(mesh.ind.buffer, None);
-                self.base.device.logical.free_memory(mesh.ind.memory, None);
-            }
+            Drawable2d::release(&self.base.device, &mut self.rect_bundles);
+            self.rect_bundles.clear();
 
-            for mesh in self.mesh_bundles.iter() {
-                self.base.device.logical.destroy_buffer(mesh.vbo.buffer, None);
-                self.base.device.logical.free_memory(mesh.vbo.memory, None);
-                self.base.device.logical.destroy_buffer(mesh.staging.buffer, None);
-                self.base.device.logical.free_memory(mesh.staging.memory, None);
-                self.base.device.logical.destroy_buffer(mesh.col.buffer, None);
-                self.base.device.logical.free_memory(mesh.col.memory, None);
-                self.base.device.logical.destroy_buffer(mesh.ind.buffer, None);
-                self.base.device.logical.free_memory(mesh.ind.memory, None);
-            }
+            DrawableMesh::release(&self.base.device, &mut self.mesh_bundles);
+            self.mesh_bundles.clear();
 
-            for texture in self.textures.iter() {
-                self.base.device.logical.destroy_buffer(texture.vbo.buffer, None);
-                self.base.device.logical.free_memory(texture.vbo.memory, None);
-                self.base.device.logical.destroy_buffer(texture.texture.staging.buffer, None);
-                self.base.device.logical.free_memory(texture.texture.staging.memory, None);
-                self.base.device.logical.destroy_buffer(texture.coords.buffer, None);
-                self.base.device.logical.free_memory(texture.coords.memory, None);
-                self.base.device.logical.destroy_buffer(texture.ind.buffer, None);
-                self.base.device.logical.free_memory(texture.ind.memory, None);
-                self.base.device.logical.destroy_image(texture.texture.resource.image, None);
-                self.base.device.logical.free_memory(texture.texture.resource.memory, None);
-                self.base.device.logical.destroy_image_view(texture.texture.image_view, None);
-                self.base.device.logical.destroy_sampler(texture.texture.sampler, None);
-            }
+            DrawableTexture::release(&self.base.device, &mut self.textures);
+            self.textures.clear();
+
+            SimpleScene::release(&self.base, &mut self.scenes);
+            self.scenes.clear();
 
             for i in 0..self.base.graphics_pipelines.len() {
                 if let Some(ubo) = self.base.graphics_pipelines[i].ubo.as_ref() {

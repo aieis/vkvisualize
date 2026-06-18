@@ -125,6 +125,24 @@ impl Drawable2d {
         }
     }
 
+    pub fn release(device: &DeviceBundle, mesh_bundles: &mut [Self])
+    {
+        unsafe
+        {
+            for mesh in mesh_bundles.iter()
+            {
+                device.logical.destroy_buffer(mesh.vbo.buffer, None);
+                device.logical.free_memory(mesh.vbo.memory, None);
+                device.logical.destroy_buffer(mesh.staging.buffer, None);
+                device.logical.free_memory(mesh.staging.memory, None);
+                device.logical.destroy_buffer(mesh.col.buffer, None);
+                device.logical.free_memory(mesh.col.memory, None);
+                device.logical.destroy_buffer(mesh.ind.buffer, None);
+                device.logical.free_memory(mesh.ind.memory, None);
+            }
+        }
+    }
+
     pub fn pipeline_descriptor() -> PipelineDescriptor {
         let ubo_layout_bindings = vec![];
 
