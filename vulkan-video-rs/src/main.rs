@@ -10,8 +10,8 @@ mod utils;
 mod rhi;
 
 use devices::record_player::RecordPlayer;
-use drawable::{drawable2d::Drawable2d, drawable_tex::DrawableTexture};
-use mesh::Rect;
+use drawable::{drawable_mesh::DrawableMesh, drawable_tex::DrawableTexture, drawable2d::Drawable2d};
+use mesh::{Rect, Cube};
 use primitives::texture2d::{PixelFormat, Texture2d};
 use utils::image::{begin_single_time_command, end_single_time_command};
 use vk_bundles::*;
@@ -33,10 +33,11 @@ use comptime_register_macro::shaders_generate_registry;
 
 struct App {
     base: VkBase,
-    mesh_bundles: Vec<Drawable2d>,
+    rect_bundles: Vec<Drawable2d>,
+    mesh_bundles: Vec<DrawableMesh>,
     textures: Vec<DrawableTexture>,
     video_device: RecordPlayer,
-    close: bool,
+    close: bool
 }
 
 use shader::*;
@@ -57,13 +58,24 @@ impl App {
         let video_device = RecordPlayer::from_buffer(include_bytes!("../assets/recordings/record1.rdbin")).unwrap();
         let mut base = VkBase::new(window, 3);
 
+        // Triangle Shader: Index 0 in the pipelines
         base.create_graphics_pipeline(Drawable2d::pipeline_descriptor()     , Box::from(make_shader!("triangle")));
+
+        // Texture Shader: Index 1 in the pipeline
         base.create_graphics_pipeline(DrawableTexture::pipeline_descriptor(), Box::from(make_shader!("texture")));
 
-        let mesh_bundles = vec![
+        // Mesh Shader: Index 2 in the pipeline
+        base.create_graphics_pipeline(DrawableMesh::pipeline_descriptor(), Box::from(make_shader!("mesh")));
+
+
+        let rect_bundles = vec![
             Drawable2d::new(&base.device, Rect::new(-0.9, -0.9, 0.5, 0.5, [1.0, 0.0, 0.0])),
             Drawable2d::new(&base.device, Rect::new(0.0, 0.0, 0.5, 0.5, [0.0, 0.0, 1.0])),
             Drawable2d::new(&base.device, Rect::new(-0.25, -0.25, 0.5, 0.5, [0.0, 1.0, 1.0]))
+        ];
+
+        let mesh_bundles = vec![
+            DrawableMesh::new(&base.device, Cube::new(0.0, 0.0, 0.25, 0.5, [1.0, 0.2, 1.0]))
         ];
 
         let data = unsafe { video_device.current_frame[0..video_device.size() / 2].align_to::<u8>().1.to_vec() };
@@ -83,6 +95,7 @@ impl App {
         Self {
             video_device,
             base,
+            rect_bundles,
             mesh_bundles,
             textures,
             close: false
@@ -91,7 +104,7 @@ impl App {
 
     fn update(&mut self) {
 
-        for mesh_bundle in self.mesh_bundles.iter_mut() {
+        for mesh_bundle in self.rect_bundles.iter_mut() {
             mesh_bundle.mesh.transform(0.001, [0.0, 0.0]);
         }
 
@@ -116,7 +129,9 @@ impl App {
             self.base.device.logical.begin_command_buffer(cb, &command_buffer_begin_info).unwrap();
         }
 
-        let res = Drawable2d::update(&self.base.device, &cb, &mut self.mesh_bundles);
+        Drawable2d::update(&self.base.device, &cb, &mut self.rect_bundles);
+        DrawableMesh::update(&self.base.device, &cb, &mut self.mesh_bundles);
+
 
         if let Some(new_frame) = self.video_device.poll() {
             self.textures[0].texture_data.update_data(new_frame);
@@ -125,11 +140,6 @@ impl App {
         DrawableTexture::update(&self.base.device, cb, &mut self.textures);
 
         unsafe { self.base.device.logical.end_command_buffer(cb).unwrap(); }
-
-        if ! res {
-            self.base.spare_command.buffers.push(cb);
-            return;
-        }
 
         let cbs = [cb];
         let submit_info = vk::SubmitInfo::default()
@@ -156,7 +166,8 @@ impl App {
         let (cb, image_index) = cb_data.unwrap();
 
         DrawableTexture::draw(&self.base.device, cb, &self.base.graphics_pipelines[1], self.base.current_frame, &self.textures);
-        Drawable2d::draw(&self.base.device, &cb, &self.base.graphics_pipelines[0], &self.mesh_bundles);
+        Drawable2d::draw(&self.base.device, &cb, &self.base.graphics_pipelines[0], &self.rect_bundles);
+        DrawableMesh::draw(&self.base.device, &cb, &self.base.graphics_pipelines[2], &self.mesh_bundles);
         self.base.render(&cb, image_index);
     }
 
@@ -205,6 +216,17 @@ impl Drop for App {
 
             let _ = self.base.device.logical.device_wait_idle();
 
+
+            for mesh in self.rect_bundles.iter() {
+                self.base.device.logical.destroy_buffer(mesh.vbo.buffer, None);
+                self.base.device.logical.free_memory(mesh.vbo.memory, None);
+                self.base.device.logical.destroy_buffer(mesh.staging.buffer, None);
+                self.base.device.logical.free_memory(mesh.staging.memory, None);
+                self.base.device.logical.destroy_buffer(mesh.col.buffer, None);
+                self.base.device.logical.free_memory(mesh.col.memory, None);
+                self.base.device.logical.destroy_buffer(mesh.ind.buffer, None);
+                self.base.device.logical.free_memory(mesh.ind.memory, None);
+            }
 
             for mesh in self.mesh_bundles.iter() {
                 self.base.device.logical.destroy_buffer(mesh.vbo.buffer, None);

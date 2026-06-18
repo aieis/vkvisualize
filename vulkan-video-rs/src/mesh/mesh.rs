@@ -24,9 +24,7 @@ impl Mesh {
         let _orig: &Vec<[f32; 3]> = self.original_vertices.as_ref().unwrap();
 
         for _i in 0..self.vertices.len() {
-            
+
         }
     }
-
-
 }
