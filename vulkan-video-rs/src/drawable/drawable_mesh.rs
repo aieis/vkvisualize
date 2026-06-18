@@ -1,6 +1,6 @@
 use ash::vk;
 
-use crate::mesh::Cube;
+use crate::mesh::Mesh;
 use crate::vk_bundles::BufferBundle;
 use crate::{utils::buffer, DeviceBundle, GraphicsPipelineBundle};
 
@@ -8,7 +8,7 @@ use super::drawable_common::PipelineDescriptor;
 
 
 pub struct DrawableMesh {
-    pub mesh: Cube,
+    pub mesh: Mesh,
     pub vbo: BufferBundle,
     pub col: BufferBundle,
     pub ind: BufferBundle,
@@ -17,7 +17,8 @@ pub struct DrawableMesh {
 
 impl DrawableMesh {
 
-    pub fn new(device: &DeviceBundle, mesh: Cube) -> Self {
+    pub fn new(device: &DeviceBundle, mesh: Mesh) -> Self {
+
         let size_vrt = mesh.size_vrt() as u64;
         let size_col = mesh.size_col() as u64;
         let size_ind = mesh.size_ind() as u64;
@@ -125,12 +126,9 @@ impl DrawableMesh {
         }
     }
 
-    pub fn release(device: &DeviceBundle, mesh_bundles: &mut [Self])
-    {
-        unsafe
-        {
-            for mesh in mesh_bundles.iter()
-            {
+    pub fn release(device: &DeviceBundle, mesh_bundles: &mut [Self]) {
+        unsafe {
+            for mesh in mesh_bundles.iter() {
                 device.logical.destroy_buffer(mesh.vbo.buffer, None);
                 device.logical.free_memory(mesh.vbo.memory, None);
                 device.logical.destroy_buffer(mesh.staging.buffer, None);

@@ -12,7 +12,7 @@ mod scene_extensions;
 
 use devices::record_player::RecordPlayer;
 use drawable::{drawable_mesh::DrawableMesh, drawable_tex::DrawableTexture, drawable2d::Drawable2d};
-use mesh::{Rect, Cube};
+use mesh::{Mesh, Rect, cube};
 use primitives::texture2d::{PixelFormat, Texture2d};
 use scene_extensions::simple_scene::SimpleScene;
 use utils::image::{begin_single_time_command, end_single_time_command};
@@ -78,7 +78,7 @@ impl App {
         ];
 
         let mesh_bundles = vec![
-            DrawableMesh::new(&base.device, Cube::new(0.0, 0.0, 0.25, 0.5, [1.0, 0.2, 1.0]))
+            DrawableMesh::new(&base.device, cube::make_cube(0.0, 0.0, 0.25, 0.5, [1.0, 0.2, 1.0]))
         ];
 
         let scenes = vec![
