@@ -23,6 +23,11 @@ impl SimpleScene
 
     pub fn update(base: &VkBase, cb: &vk::CommandBuffer, scenes: &mut [SimpleScene]) {
         for scene in scenes.iter_mut() {
+
+            for mesh in scene.mesh_bundles.iter_mut() {
+                mesh.mesh.rotate_z(1e-3);
+            }
+
             DrawableMesh::update(&base.device, &cb, &mut scene.mesh_bundles);
         }
 

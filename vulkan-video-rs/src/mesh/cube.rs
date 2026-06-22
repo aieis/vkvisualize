@@ -29,7 +29,10 @@ pub fn make_cube(x: f32, y: f32, z: f32, length: f32, col: [f32; 3]) -> Mesh
         0+4, 1+4, 2+4, 0+4, 2+4, 3+4
     ];
 
+    let center = [x, y, z];
+
     Mesh {
+        center,
         vertices,
         colour,
         indices,
