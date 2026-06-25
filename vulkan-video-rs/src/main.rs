@@ -8,7 +8,9 @@ mod drawable;
 mod primitives;
 mod utils;
 mod rhi;
+mod scene;
 mod scene_extensions;
+mod geometry;
 
 use devices::record_player::RecordPlayer;
 use drawable::{drawable_mesh::DrawableMesh, drawable_tex::DrawableTexture, drawable2d::Drawable2d};
@@ -56,6 +58,8 @@ impl App {
         {
             println!("Registered shader: ({}) {}", ids[i], paths[i]);
         }
+
+        println!("ShaderMesh: ID={} PATH={}", ShaderMesh::ID, ShaderMesh::PATH);
 
 
         let video_device = RecordPlayer::from_buffer(include_bytes!("../assets/recordings/record1.rdbin")).unwrap();
