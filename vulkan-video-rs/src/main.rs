@@ -14,7 +14,7 @@ mod geometry;
 
 use devices::record_player::RecordPlayer;
 use drawable::{drawable_mesh::DrawableMesh, drawable_tex::DrawableTexture, drawable2d::Drawable2d};
-use mesh::{Mesh, Rect, cube};
+use mesh::{ Rect, cube};
 use primitives::texture2d::{PixelFormat, Texture2d};
 use scene_extensions::simple_scene::SimpleScene;
 use utils::image::{begin_single_time_command, end_single_time_command};
@@ -47,19 +47,12 @@ struct App {
 
 use shader::*;
 
-shaders_generate_registry!();
-
 impl App {
     fn new(window: Window) -> Self {
 
-        let (paths, ids) = process_all_shaders();
+        ShaderRegistry::describe_registed_shaders();
 
-        for i in 0..paths.len()
-        {
-            println!("Registered shader: ({}) {}", ids[i], paths[i]);
-        }
-
-        println!("ShaderMesh: ID={} PATH={}", ShaderMesh::ID, ShaderMesh::PATH);
+        println!("ShaderMesh: ID={} PATH={}", ShaderMesh::ID, ShaderMesh::NAME);
 
 
         let video_device = RecordPlayer::from_buffer(include_bytes!("../assets/recordings/record1.rdbin")).unwrap();
