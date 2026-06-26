@@ -1,76 +1,11 @@
 use std::{
-    path::{Path, PathBuf}, process::ExitStatus, str::FromStr, time::SystemTime
+    path::PathBuf, str::FromStr, time::SystemTime
 };
 
-use anyhow::Error;
 use ash::vk;
 use comptime_register_macro::{register_shader, shaders_registry};
 
-use crate::{drawable::drawable_common::{DescSetBinding, PipelineDescriptor}, vk_bundles::DeviceBundle};
-
-fn compile_shader_modules(
-    device: &ash::Device,
-    vertex_code: &[u8],
-    fragment_code: &[u8],
-) -> (vk::ShaderModule, vk::ShaderModule) {
-    let create_info = vk::ShaderModuleCreateInfo {
-        code_size: vertex_code.len(),
-        p_code: vertex_code.as_ptr() as *const u32,
-        ..Default::default()
-    };
-
-    let vertex = unsafe { device.create_shader_module(&create_info, None).unwrap() };
-
-    let create_info = vk::ShaderModuleCreateInfo {
-        code_size: fragment_code.len(),
-        p_code: fragment_code.as_ptr() as *const u32,
-        ..Default::default()
-    };
-
-    let fragment = unsafe { device.create_shader_module(&create_info, None).unwrap() };
-
-    (vertex, fragment)
-}
-
-pub struct ShaderComp {
-    pub vertex_code: Vec<u8>,
-    pub fragment_code: Vec<u8>,
-}
-
-pub struct ShaderFile {
-    pub vertex_path: String,
-    pub fragment_path: String,
-}
-
-pub trait Shader {
-    fn compile(&self, device: &ash::Device) -> (vk::ShaderModule, vk::ShaderModule);
-}
-
-impl Shader for ShaderFile {
-    fn compile(&self, device: &ash::Device) -> (vk::ShaderModule, vk::ShaderModule) {
-        let vertex_code = std::fs::read(&self.vertex_path).unwrap();
-        let fragment_code = std::fs::read(&self.fragment_path).unwrap();
-        return compile_shader_modules(device, &vertex_code, &fragment_code);
-    }
-}
-
-impl Shader for ShaderComp {
-    fn compile(&self, device: &ash::Device) -> (vk::ShaderModule, vk::ShaderModule) {
-        return compile_shader_modules(device, &self.vertex_code, &self.fragment_code);
-    }
-}
-
-#[macro_export]
-macro_rules! make_shader {
-    ($x: literal) => {{
-        let vertex_code = include_bytes!(concat!("../assets/shaders/", $x, ".vert.spv")).to_vec();
-        let fragment_code = include_bytes!(concat!("../assets/shaders/", $x, ".frag.spv")).to_vec();
-        ShaderComp {
-            vertex_code,
-            fragment_code,
-        }
-    }};
-}
+use crate::vk_bundles::{DescSetBinding, PipelineDescriptor, DeviceBundle};
 
 #[register_shader("mesh")]
 pub struct ShaderMesh { }
@@ -388,7 +323,7 @@ impl CompiledShader {
         return true;
     }
 
-    pub fn load_from_details(device: &DeviceBundle, details: StaticShader) -> Result<CompiledShader, String> {
+    pub fn load_from_details(device: &DeviceBundle, details: &StaticShader) -> Result<CompiledShader, String> {
 
         let vert_mt = StaticShader::file_mt(&details.vert_path);
         let ve = vert_mt.is_some();
@@ -397,7 +332,7 @@ impl CompiledShader {
         let fe = frag_mt.is_some();
 
         if !ve || !fe {
-            let mut msg = "Error: The follwing files does not exist!".to_string();
+            let mut msg = "Error: The follwing files do not exist!".to_string();
             if !ve {
                 msg.push_str(&format!("\n\t {:?}", details.vert_path));
             }
@@ -453,12 +388,18 @@ impl CompiledShader {
             }
 
             (Some((vert_code, vert_module)), Some((frag_code, frag_module))) => {
-                let mut details = details;
-                details.vert_mt = vert_mt;
-                details.vert_code = vert_code;
-
-                details.frag_mt = frag_mt;
-                details.frag_code = frag_code;
+                let details = StaticShader {
+                    vert_path: details.vert_path.clone(),
+                    frag_path: details.frag_path.clone(),
+                    vert_spv_path: details.vert_spv_path.clone(),
+                    frag_spv_path: details.frag_spv_path.clone(),
+                    vert_mt,
+                    frag_mt,
+                    vert_code,
+                    frag_code,
+                    descriptor: details.descriptor.clone(),
+                    id: details.id,
+                };
 
                 Ok( Self {
                     details,
@@ -474,17 +415,81 @@ impl CompiledShader {
 #[shaders_registry]
 pub struct ShaderRegistry {
 
+    pub static_shaders: [CompiledShader; ShaderRegistry::SHADER_DETAILS.len()],
+
 }
 
 impl ShaderRegistry {
 
+    pub fn new(device: &DeviceBundle, asset_dir: &str) -> Self {
+
+        let asset_dir = match PathBuf::from_str(asset_dir) {
+            Ok(asset_dir) => asset_dir,
+            Err(e) => panic!("ShaderRegistry: Failed to get asset dir as path: {}.", e)
+        };
+
+        let static_shaders = ShaderRegistry::SHADER_DETAILS.map(|shader_info| {
+            ShaderRegistry::get_compiled_shader(device, &asset_dir, shader_info.0, shader_info.1, shader_info.2())
+        });
+
+        Self {
+            static_shaders
+        }
+    }
+
+    pub fn get_compiled_shader(device: &DeviceBundle, asset_dir: &PathBuf, name: &str, id: usize, descriptor: PipelineDescriptor) -> CompiledShader {
+
+        let name = name.to_string();
+
+        let vert_name = name.clone() + ".vert";
+        let vert_path = asset_dir.join(vert_name);
+        let vert_spv_name = name.clone() + ".vert.spv";
+        let vert_spv_path = asset_dir.join(vert_spv_name);
+        let vert_mt = match StaticShader::file_mt(&vert_path) {
+            Some(mt) => mt,
+            None => SystemTime::UNIX_EPOCH
+        };
+
+        let frag_name = name.clone() + ".frag";
+        let frag_path = asset_dir.join(frag_name);
+        let frag_spv_name = name.clone() + ".frag.spv";
+        let frag_spv_path = asset_dir.join(frag_spv_name);
+        let frag_mt = match StaticShader::file_mt(&frag_path) {
+            Some(mt) => mt,
+            None => SystemTime::UNIX_EPOCH
+        };
+
+        let details = StaticShader {
+            vert_path,
+            frag_path,
+            vert_mt,
+            frag_mt,
+            vert_spv_path,
+            frag_spv_path,
+            vert_code: Vec::new(),
+            frag_code: Vec::new(),
+            descriptor,
+            id,
+        };
+
+        let compiled_shader = match CompiledShader::load_from_details(device, &details) {
+            Ok(compiled_shader) => compiled_shader,
+            Err(e) => panic!("ShaderRegistry: Failed to compile the shader ({}) : {}.", name, e)
+        };
+
+        return compiled_shader;
+    }
+
+
     pub fn describe_registed_shaders() {
 
         // created by the shader_registry proc_macro_attribute of the struct
+        println!();
         println!("Shader Registry - {} Shaders Registered:", ShaderRegistry::SHADER_DETAILS.len());
         for (name, id, _) in ShaderRegistry::SHADER_DETAILS {
             println!("\t Shader {} ({})", name, id);
         }
+        println!();
 
     }
 

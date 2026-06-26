@@ -1,9 +1,6 @@
 use ash::vk;
 use ash::khr;
 
-use crate::drawable::drawable_common::PipelineDescriptor;
-use crate::shader::Shader;
-
 pub struct SurfaceBundle {
     pub surface: vk::SurfaceKHR,
     pub loader: khr::surface::Instance
@@ -25,8 +22,24 @@ pub struct SwapchainBundle {
     pub extent: vk::Extent2D,
 }
 
+#[derive(Clone)]
+pub struct DescSetBinding {
+    pub binding: u32,
+    pub descriptor_type: vk::DescriptorType,
+    pub descriptor_count: u32,
+    pub stage_flags: vk::ShaderStageFlags,
+}
+
+
+#[derive(Clone)]
+pub struct PipelineDescriptor {
+    pub ubo_layout_bindings: Vec<DescSetBinding>,
+    pub vertex_bindings: Vec<vk::VertexInputBindingDescription>,
+    pub vertex_attributes: Vec<vk::VertexInputAttributeDescription>
+}
+
 pub struct GraphicsPipelineBundle {
-    pub shader: Box<dyn Shader>,
+    pub id: usize,
     pub graphics: vk::Pipeline,
     pub layout: vk::PipelineLayout,
     pub ubo: Option<Vec<vk::DescriptorSetLayout>>,

@@ -4,9 +4,6 @@ use crate::mesh::Mesh;
 use crate::vk_bundles::BufferBundle;
 use crate::{utils::buffer, DeviceBundle, GraphicsPipelineBundle};
 
-use super::drawable_common::PipelineDescriptor;
-
-
 pub struct DrawableMesh {
     pub mesh: Mesh,
     pub vbo: BufferBundle,
@@ -138,38 +135,6 @@ impl DrawableMesh {
                 device.logical.destroy_buffer(mesh.ind.buffer, None);
                 device.logical.free_memory(mesh.ind.memory, None);
             }
-        }
-    }
-
-    pub fn pipeline_descriptor() -> PipelineDescriptor {
-        let ubo_layout_bindings = vec![];
-
-        let vertex_bindings = vec![
-            vk::VertexInputBindingDescription::default()
-                .binding(0)
-                .stride(std::mem::size_of::<[f32; 3]>() as u32)
-                .input_rate(vk::VertexInputRate::VERTEX),
-            vk::VertexInputBindingDescription::default()
-                .binding(1)
-                .stride(std::mem::size_of::<[f32; 3]>() as u32)
-                .input_rate(vk::VertexInputRate::VERTEX)
-        ];
-
-        let vertex_attributes = vec![
-            vk::VertexInputAttributeDescription::default()
-                .binding(0)
-                .location(0)
-                .format(vk::Format::R32G32_SFLOAT),
-            vk::VertexInputAttributeDescription::default()
-                .binding(1)
-                .location(1)
-                .format(vk::Format::R32G32B32_SFLOAT)
-        ];
-
-        PipelineDescriptor {
-            ubo_layout_bindings,
-            vertex_bindings,
-            vertex_attributes,
         }
     }
 }

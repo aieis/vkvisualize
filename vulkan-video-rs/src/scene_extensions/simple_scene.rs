@@ -1,6 +1,7 @@
 use ash::vk;
 
 use crate::{drawable::drawable_mesh::DrawableMesh, mesh::cube, vk_base::VkBase};
+use crate::shader::{ShaderMesh,ShaderRect,ShaderTexture};
 
 pub struct SimpleScene
 {
@@ -35,7 +36,7 @@ impl SimpleScene
 
     pub fn draw(base: &mut VkBase, cb: &vk::CommandBuffer, scenes: &[SimpleScene]) {
         for scene in scenes {
-            DrawableMesh::draw(&base.device, cb, &base.graphics_pipelines[scene.mesh_shader_idx], &scene.mesh_bundles);
+            DrawableMesh::draw(&base.device, cb, &base.graphics_pipelines[ShaderMesh::ID], &scene.mesh_bundles);
         }
     }
 

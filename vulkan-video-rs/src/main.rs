@@ -24,16 +24,12 @@ use ash::vk;
 
 use vk_base::VkBase;
 
-use shader::ShaderComp;
-
 use winit::{
     event::{Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
     keyboard::KeyCode,
     window::{Window, WindowBuilder},
 };
-
-use comptime_register_macro::shaders_generate_registry;
 
 struct App {
     base: VkBase,
@@ -52,21 +48,9 @@ impl App {
 
         ShaderRegistry::describe_registed_shaders();
 
-        println!("ShaderMesh: ID={} PATH={}", ShaderMesh::ID, ShaderMesh::NAME);
-
 
         let video_device = RecordPlayer::from_buffer(include_bytes!("../assets/recordings/record1.rdbin")).unwrap();
-        let mut base = VkBase::new(window, 3);
-
-        // Triangle Shader: Index 0 in the pipelines
-        base.create_graphics_pipeline(Drawable2d::pipeline_descriptor()     , Box::from(make_shader!("triangle")));
-
-        // Texture Shader: Index 1 in the pipeline
-        base.create_graphics_pipeline(DrawableTexture::pipeline_descriptor(), Box::from(make_shader!("texture")));
-
-        // Mesh Shader: Index 2 in the pipeline
-        base.create_graphics_pipeline(DrawableMesh::pipeline_descriptor(), Box::from(make_shader!("mesh")));
-
+        let base = VkBase::new(window, 3, "./assets/shaders");
 
         let rect_bundles = vec![
             Drawable2d::new(&base.device, Rect::new(-0.9, -0.9, 0.5, 0.5, [1.0, 0.0, 0.0])),
@@ -88,7 +72,7 @@ impl App {
         //TODO: Cleanup descriptor pool
 
         let command_buffer = begin_single_time_command(&base.device, base.spare_command.pool);
-        let ubo = base.graphics_pipelines[1].ubo.as_ref().unwrap();
+        let ubo = base.graphics_pipelines[ShaderTexture::ID].ubo.as_ref().unwrap();
 
         let textures = vec![
             DrawableTexture::new(&base.device, base.descriptor_pool,  command_buffer, ubo[0], base.swapchain.images.len(), Rect::new(-1.0, -1.0, 2.0, 2.0, [1.0, 1.0, 1.0]), texture)
@@ -172,9 +156,9 @@ impl App {
 
         let (cb, image_index) = cb_data.unwrap();
 
-        DrawableTexture::draw(&self.base.device, cb, &self.base.graphics_pipelines[1], self.base.current_frame, &self.textures);
-        Drawable2d::draw(&self.base.device, &cb, &self.base.graphics_pipelines[0], &self.rect_bundles);
-        DrawableMesh::draw(&self.base.device, &cb, &self.base.graphics_pipelines[2], &self.mesh_bundles);
+        DrawableTexture::draw(&self.base.device, cb, &self.base.graphics_pipelines[ShaderTexture::ID], self.base.current_frame, &self.textures);
+        Drawable2d::draw(&self.base.device, &cb, &self.base.graphics_pipelines[ShaderRect::ID], &self.rect_bundles);
+        DrawableMesh::draw(&self.base.device, &cb, &self.base.graphics_pipelines[ShaderMesh::ID], &self.mesh_bundles);
         SimpleScene::draw(&mut self.base, &cb, &self.scenes);
         self.base.render(&cb, image_index);
     }

@@ -6,8 +6,6 @@ use crate::vk_bundles::BufferBundle;
 use crate::{utils, DeviceBundle, GraphicsPipelineBundle, TextureBundle};
 use crate::primitives::texture2d::Texture2d;
 
-use super::drawable_common::{DescSetBinding, PipelineDescriptor};
-
 
 pub struct DrawableTexture {
     pub rect: Rect,
@@ -182,47 +180,6 @@ impl DrawableTexture {
                 device.logical.destroy_image_view(texture.texture.image_view, None);
                 device.logical.destroy_sampler(texture.texture.sampler, None);
             }
-        }
-    }
-
-
-    pub fn pipeline_descriptor() -> PipelineDescriptor {
-        let ubo_layout_bindings = vec![
-            DescSetBinding {
-                binding: 0,
-                descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
-                descriptor_count: 1,
-                stage_flags: vk::ShaderStageFlags::FRAGMENT,
-            }
-        ];
-
-        let vertex_bindings = vec![
-            vk::VertexInputBindingDescription::default()
-                .binding(0)
-                .stride(std::mem::size_of::<[f32; 2]>() as u32)
-                .input_rate(vk::VertexInputRate::VERTEX),
-
-            vk::VertexInputBindingDescription::default()
-                .binding(1)
-                .stride(std::mem::size_of::<[f32; 2]>() as u32)
-                .input_rate(vk::VertexInputRate::VERTEX)
-        ];
-
-        let vertex_attributes = vec![
-            vk::VertexInputAttributeDescription::default()
-                .binding(0)
-                .location(0)
-                .format(vk::Format::R32G32_SFLOAT),
-            vk::VertexInputAttributeDescription::default()
-                .binding(1)
-                .location(1)
-                .format(vk::Format::R32G32_SFLOAT)
-        ];
-
-        PipelineDescriptor {
-            ubo_layout_bindings,
-            vertex_bindings,
-            vertex_attributes,
         }
     }
 }

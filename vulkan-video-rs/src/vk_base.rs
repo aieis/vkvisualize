@@ -2,9 +2,8 @@ use std::ffi::{c_char, c_void, CStr, CString};
 
 use ash::{ext::debug_utils, khr};
 
-use crate::{drawable::drawable_common::DescSetBinding, shader::Shader};
+use crate::shader::{CompiledShader, ShaderRegistry};
 use crate::vk_bundles::*;
-use crate::drawable::drawable_common::PipelineDescriptor;
 
 use ash::vk;
 use winit::{raw_window_handle::{HasDisplayHandle, HasWindowHandle}, window::Window};
@@ -32,12 +31,13 @@ pub struct VkBase {
     pub window: Window,
     pub max_in_flight: usize,
 
+    pub shader_registry: ShaderRegistry,
     pub graphics_pipelines: Vec<GraphicsPipelineBundle>,
 
 }
 
 impl VkBase {
-    pub fn new(window: Window, max_in_flight: usize) -> Self {
+    pub fn new(window: Window, max_in_flight: usize, asset_dir: &str) -> Self {
         let (entry, instance) = VkBase::create_instance(&window);
         let (debug_utils_loader, debug_messenger) = VkBase::setup_validation(&entry, &instance);
 
@@ -54,6 +54,11 @@ impl VkBase {
 
         let descriptor_pool = VkBase::create_descriptor_pool(&device, swapchain.images.len());
 
+        let shader_registry = ShaderRegistry::new(&device, asset_dir);
+
+        let graphics_pipelines: Vec<_> = (0..shader_registry.static_shaders.len()).map(|i| {
+            VkBase::create_graphics_pipeline_impl(&device, &swapchain, &render_pass, &shader_registry, i, None)
+        }).collect();
 
         Self {
             _entry: entry,
@@ -82,7 +87,8 @@ impl VkBase {
             window,
             max_in_flight,
 
-            graphics_pipelines: vec![]
+            shader_registry,
+            graphics_pipelines
         }
     }
 
@@ -222,24 +228,8 @@ impl VkBase {
 
     }
 
-    pub fn create_graphics_pipeline(&mut self, pipeline_desc: PipelineDescriptor, shader: Box<dyn Shader>) -> usize
-    {
-        // TODO: ubo_set_layout should probably be created externally.
-        let ubo = if pipeline_desc.ubo_layout_bindings.len() == 0 { None } else {
-            Some(vec![Self::create_descriptor_set_layout(&self.device, &pipeline_desc.ubo_layout_bindings)])
-        };
-
-        let pso = VkBase::create_graphics_pipeline_impl(&self.device, &self.swapchain, &self.render_pass, pipeline_desc, ubo, shader);
-
-        let idx = self.graphics_pipelines.len();
-
-        self.graphics_pipelines.push(pso);
-
-        return idx;
-    }
-
-    pub fn recreate_graphics_pipeline(&self, graphics_pipeline: GraphicsPipelineBundle) -> GraphicsPipelineBundle {
-        return VkBase::create_graphics_pipeline_impl(&self.device, &self.swapchain, &self.render_pass, graphics_pipeline.pipeline_desc, graphics_pipeline.ubo, graphics_pipeline.shader);
+    pub fn recreate_graphics_pipeline(&mut self, graphics_pipeline: GraphicsPipelineBundle) -> GraphicsPipelineBundle {
+        return VkBase::create_graphics_pipeline_impl(&self.device, &self.swapchain, &self.render_pass, &self.shader_registry, graphics_pipeline.id, graphics_pipeline.ubo);
     }
 
     pub fn recreate_swapchain(&mut self) {
@@ -539,8 +529,18 @@ impl VkBase {
     }
 
     /* Setup the graphics pipeline */
-    pub fn create_graphics_pipeline_impl(device: &DeviceBundle, swapchain: &SwapchainBundle, renderpass: &vk::RenderPass, pipeline_desc: PipelineDescriptor, ubo: Option<Vec<vk::DescriptorSetLayout>>, shader: Box<dyn Shader>) -> GraphicsPipelineBundle {
-        let (shader_vertex, shader_fragment) = shader.compile(&device.logical);
+    pub fn create_graphics_pipeline_impl(device: &DeviceBundle, swapchain: &SwapchainBundle, renderpass: &vk::RenderPass, shader_registry: &ShaderRegistry, shader_id: usize, ubo: Option<Vec<vk::DescriptorSetLayout>>) -> GraphicsPipelineBundle {
+
+        let pipeline_desc = &shader_registry.static_shaders[shader_id].details.descriptor;
+
+        let ubo = if ubo.is_some() || pipeline_desc.ubo_layout_bindings.len() == 0 { ubo } else {
+            Some(vec![Self::create_descriptor_set_layout(device, &pipeline_desc.ubo_layout_bindings)])
+        };
+
+
+        let shader_vertex   = shader_registry.static_shaders[shader_id].vert_module;
+        let shader_fragment = shader_registry.static_shaders[shader_id].frag_module;
+
         let main_function_name = CString::new("main").unwrap(); // the beginning function name in shader code.
         let vertex_shader_stage = vk::PipelineShaderStageCreateInfo::default()
             .name(&main_function_name)
@@ -655,18 +655,12 @@ impl VkBase {
                 .expect("Failed to create Graphics Pipeline!.")
         };
 
-        unsafe {
-            device.logical.destroy_shader_module(shader_vertex, None);
-            device.logical.destroy_shader_module(shader_fragment, None);
-        }
-
-
         GraphicsPipelineBundle {
-            shader,
+            id: shader_id,
             graphics: graphics_pipelines[0],
             layout: pipeline_layout,
             ubo,
-            pipeline_desc
+            pipeline_desc: pipeline_desc.clone()
         }
     }
 
