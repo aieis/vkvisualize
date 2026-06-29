@@ -2,7 +2,7 @@ use std::ffi::{c_char, c_void, CStr, CString};
 
 use ash::{ext::debug_utils, khr};
 
-use crate::shader::{CompiledShader, ShaderRegistry};
+use crate::shader::ShaderRegistry;
 use crate::vk_bundles::*;
 
 use ash::vk;
@@ -303,6 +303,27 @@ impl VkBase {
                 self.spare_command.buffers.push(command_buffer);
                 self.sync_objects.spare_fences.push(fence);
                 self.in_flight_buffers.remove(idx);
+            }
+        }
+    }
+
+
+    pub fn check_and_recompile_shaders(&mut self) {
+        for i in 0..self.shader_registry.static_shaders.len() {
+            let compiled_shader = &mut self.shader_registry.static_shaders[i];
+            if compiled_shader.details.outdated() {
+                compiled_shader.reload_and_compile(&self.device);
+
+                let pso = self.graphics_pipelines.remove(i);
+
+                let pso = VkBase::create_graphics_pipeline_impl(
+                    &self.device, &self.swapchain, &self.render_pass, &self.shader_registry,
+                    pso.id,
+                    pso.ubo
+                );
+
+                self.graphics_pipelines.insert(i, pso);
+
             }
         }
     }

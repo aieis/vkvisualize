@@ -1,24 +1,25 @@
 use ash::vk;
 
 use crate::{drawable::drawable_mesh::DrawableMesh, mesh::cube, vk_base::VkBase};
-use crate::shader::{ShaderMesh,ShaderRect,ShaderTexture};
+use crate::shader::ShaderMesh;
 
 pub struct SimpleScene
 {
-    pub mesh_shader_idx : usize,
     pub mesh_bundles    : Vec<DrawableMesh>,
 }
 
 impl SimpleScene
 {
-    pub fn new(base: &VkBase, mesh_shader_idx : usize) -> SimpleScene {
+    pub fn new(base: &VkBase) -> SimpleScene {
+
+        let mut cube = cube::make_cube(0.75, 0.75, 0.25, 0.5, [0.0, 1.0, 0.0]);
+
         let mesh_bundles = vec![
-            DrawableMesh::new(&base.device, cube::make_cube(0.75, 0.75, 0.25, 0.5, [0.0, 1.0, 0.0]))
+            DrawableMesh::new(&base.device, cube)
         ];
 
         Self {
-            mesh_shader_idx,
-            mesh_bundles,
+            mesh_bundles
         }
     }
 
@@ -27,6 +28,7 @@ impl SimpleScene
 
             for mesh in scene.mesh_bundles.iter_mut() {
                 mesh.mesh.rotate_z(1e-3);
+                mesh.mesh.rotate_y(1e-3);
             }
 
             DrawableMesh::update(&base.device, &cb, &mut scene.mesh_bundles);

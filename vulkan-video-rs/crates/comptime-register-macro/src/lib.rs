@@ -38,7 +38,7 @@ pub fn register_shader(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn shaders_registry(attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn shaders_registry(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let input_struct = parse_macro_input!(item as ItemStruct);
     let struct_name = input_struct.ident.to_string();

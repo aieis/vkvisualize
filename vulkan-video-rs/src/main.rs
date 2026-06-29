@@ -12,6 +12,8 @@ mod scene;
 mod scene_extensions;
 mod geometry;
 
+use std::time::{Duration, Instant};
+
 use devices::record_player::RecordPlayer;
 use drawable::{drawable_mesh::DrawableMesh, drawable_tex::DrawableTexture, drawable2d::Drawable2d};
 use mesh::{ Rect, cube};
@@ -38,10 +40,15 @@ struct App {
     textures: Vec<DrawableTexture>,
     scenes: Vec<SimpleScene>,
     video_device: RecordPlayer,
-    close: bool
+    close: bool,
+
+    shader_poll_time: Instant
 }
 
 use shader::*;
+
+
+const SHADER_POLL_INTERVAL: Duration = Duration::from_millis(500);
 
 impl App {
     fn new(window: Window) -> Self {
@@ -63,7 +70,7 @@ impl App {
         ];
 
         let scenes = vec![
-            SimpleScene::new(&base, 2)
+            SimpleScene::new(&base)
         ];
 
         let data = unsafe { video_device.current_frame[0..video_device.size() / 2].align_to::<u8>().1.to_vec() };
@@ -87,11 +94,14 @@ impl App {
             mesh_bundles,
             textures,
             scenes,
-            close: false
+            shader_poll_time: Instant::now() + SHADER_POLL_INTERVAL,
+            close: false,
         }
     }
 
     fn update(&mut self) {
+
+        let ct = Instant::now();
 
         for mesh_bundle in self.rect_bundles.iter_mut() {
             mesh_bundle.mesh.transform(0.001, [0.0, 0.0]);
@@ -141,6 +151,14 @@ impl App {
         }
 
         self.base.in_flight_buffers.push((cb, fences[0]));
+
+        if self.shader_poll_time > ct {
+            println!("COMPILE!");
+            self.base.check_and_recompile_shaders();
+            self.shader_poll_time = ct + SHADER_POLL_INTERVAL;
+        }
+
+
     }
 
     fn render(&mut self)

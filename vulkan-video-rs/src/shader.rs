@@ -358,6 +358,7 @@ impl CompiledShader {
         let vert_result = StaticShader::reload_and_compile_spv(device, &details.vert_spv_path);
         let frag_result = StaticShader::reload_and_compile_spv(device, &details.frag_spv_path);
 
+
         if !vert_result.is_some() || !frag_result.is_some() {
             // cleanup and exit
 

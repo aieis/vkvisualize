@@ -4,4 +4,3 @@ pub mod cube;
 
 pub use mesh::*;
 pub use rect::*;
-pub use cube::*;

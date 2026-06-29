@@ -33,6 +33,27 @@ impl Mesh {
         self.dirty_vertices = true;
     }
 
+    pub fn rotate_y(&mut self, theta: f32) {
+
+        let (s, c) = theta.sin_cos();
+
+        let [cx, cy, cz] = self.center;
+
+        for i in 0..self.vertices.len() {
+            let [x, y, z] = self.vertices[i];
+            let [x, y, z] = [x - cx, y - cy, z - cz];
+
+            self.vertices[i] = [
+                cx + x * c - z * s,
+                cy + y,
+                cz + x * s + z * c,
+            ];
+        }
+
+        self.dirty_vertices = true;
+    }
+
+
     pub fn size_vrt(&self) -> usize {
         std::mem::size_of_val(&self.vertices[..])
     }
