@@ -71,14 +71,14 @@ impl App {
 
         //TODO: Cleanup descriptor pool
 
-        let command_buffer = begin_single_time_command(&base.device, base.spare_command.pool);
+        let cb = begin_single_time_command(&base.device, base.spare_command.pool);
         let ubo = base.graphics_pipelines[ShaderTexture::ID].ubo.as_ref().unwrap();
 
         let textures = vec![
-            DrawableTexture::new(&base.device, base.descriptor_pool,  command_buffer, ubo[0], base.swapchain.images.len(), Rect::new(-1.0, -1.0, 2.0, 2.0, [1.0, 1.0, 1.0]), texture)
+            DrawableTexture::new(&base.device, base.descriptor_pool,  cb, ubo[0], base.swapchain.images.len(), Rect::new(-1.0, -1.0, 2.0, 2.0, [1.0, 1.0, 1.0]), texture)
         ];
 
-        end_single_time_command(&base.device, base.spare_command.pool, base.device.present_queue, command_buffer);
+        end_single_time_command(&base.device, base.spare_command.pool, base.device.present_queue, cb);
 
         Self {
             video_device,
@@ -103,19 +103,17 @@ impl App {
             return;
         }
 
-        let cb = self.base.spare_command.buffers.pop();
-        if cb.is_none() {
-            return;
-        }
+        let cb = match self.base.spare_command.buffers.pop() {
+            Some(cb) => cb,
+            None => { return; }
+        };
 
-        let cb = cb.unwrap();
-
-        let command_buffer_begin_info =  vk::CommandBufferBeginInfo::default()
+        let cb_begin_info =  vk::CommandBufferBeginInfo::default()
             .flags(vk::CommandBufferUsageFlags::SIMULTANEOUS_USE);
 
         unsafe {
             let _ = self.base.device.logical.reset_command_buffer(cb, vk::CommandBufferResetFlags::empty());
-            self.base.device.logical.begin_command_buffer(cb, &command_buffer_begin_info).unwrap();
+            self.base.device.logical.begin_command_buffer(cb, &cb_begin_info).unwrap();
         }
 
         Drawable2d::update(&self.base.device, &cb, &mut self.rect_bundles);
@@ -231,7 +229,6 @@ impl Drop for App {
                 self.base.device.logical.destroy_pipeline(self.base.graphics_pipelines[i].graphics, None);
                 self.base.device.logical.destroy_pipeline_layout(self.base.graphics_pipelines[i].layout, None);
             }
-
         }
     }
 }

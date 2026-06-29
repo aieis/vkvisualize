@@ -538,19 +538,19 @@ impl VkBase {
         };
 
 
-        let shader_vertex   = shader_registry.static_shaders[shader_id].vert_module;
-        let shader_fragment = shader_registry.static_shaders[shader_id].frag_module;
+        let shader_vert = shader_registry.static_shaders[shader_id].vert_module;
+        let shader_frag = shader_registry.static_shaders[shader_id].frag_module;
 
         let main_function_name = CString::new("main").unwrap(); // the beginning function name in shader code.
         let vertex_shader_stage = vk::PipelineShaderStageCreateInfo::default()
             .name(&main_function_name)
             .stage(vk::ShaderStageFlags::VERTEX)
-            .module(shader_vertex);
+            .module(shader_vert);
 
         let fragment_shader_stage = vk::PipelineShaderStageCreateInfo::default()
             .name(&main_function_name)
             .stage(vk::ShaderStageFlags::FRAGMENT)
-            .module(shader_fragment);
+            .module(shader_frag);
 
         let shader_stage_create_infos = [vertex_shader_stage, fragment_shader_stage];
 
@@ -860,6 +860,13 @@ impl Drop for VkBase {
 
             for i in 0..self.sync_objects.spare_fences.len() {
                 self.device.logical.destroy_fence(self.sync_objects.spare_fences[i], None);
+            }
+
+            for i in 0..self.shader_registry.static_shaders.len() {
+                let shader_vert = self.shader_registry.static_shaders[i].vert_module;
+                let shader_frag = self.shader_registry.static_shaders[i].frag_module;
+                self.device.logical.destroy_shader_module(shader_vert, None);
+                self.device.logical.destroy_shader_module(shader_frag, None);
             }
 
             self.cleanup_swapchain();
