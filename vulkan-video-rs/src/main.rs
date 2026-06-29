@@ -152,13 +152,10 @@ impl App {
 
         self.base.in_flight_buffers.push((cb, fences[0]));
 
-        if self.shader_poll_time > ct {
-            println!("COMPILE!");
+        if self.shader_poll_time < ct {
             self.base.check_and_recompile_shaders();
             self.shader_poll_time = ct + SHADER_POLL_INTERVAL;
         }
-
-
     }
 
     fn render(&mut self)
