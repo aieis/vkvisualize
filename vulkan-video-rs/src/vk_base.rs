@@ -316,13 +316,20 @@ impl VkBase {
 
                 let pso = self.graphics_pipelines.remove(i);
 
-                let pso = VkBase::create_graphics_pipeline_impl(
+                let new_pso = VkBase::create_graphics_pipeline_impl(
                     &self.device, &self.swapchain, &self.render_pass, &self.shader_registry,
                     pso.id,
                     pso.ubo
                 );
 
-                self.graphics_pipelines.insert(i, pso);
+                unsafe {
+                    self.device.logical.device_wait_idle();
+                    self.device.logical.destroy_pipeline(pso.graphics, None);
+                    self.device.logical.destroy_pipeline_layout(pso.layout, None);
+                }
+
+
+                self.graphics_pipelines.insert(i, new_pso);
 
             }
         }
