@@ -10,10 +10,10 @@ void main() {
 
 
     float time   = col.x;
-    float period = radians(180/60);
+    float period = radians(180) / 10;
 
-    vec3  camera_pos = vec3(0, 0, 1.5);
-    vec3  camera_dir = normalize(vec3(0, sin(time), 1));
+    vec3  camera_pos = vec3(0, 0, -3);
+    vec3  camera_dir = normalize(vec3(0, sin(time*period), 1));
 
     float cam_y_comp = length(camera_dir.xz); // ys compliment sqrt(x*x + z*z)
     float sin_x = - camera_dir.y;  // y / |v|
@@ -22,14 +22,15 @@ void main() {
     float sin_y = - camera_dir.x / cam_y_comp;
     float cos_y =   camera_dir.z / cam_y_comp;
 
-    float y_comp   = length(pos.xz);
-    float y_r      = y_comp * sin_x + pos.y * cos_x;
-    float y_comp_r = y_comp * cos_x - pos.y * sin_x;
-    float x_r      = pos.x; //pos.x / y_comp * y_comp_r;
-    float z_r      = pos.z / y_comp * y_comp_r;
+    vec3 rel_pos  = pos - camera_pos;
+    float y_comp   = length(rel_pos.xz);
+    float y_r      = y_comp * sin_x + rel_pos.y * cos_x;
+    float y_comp_r = y_comp * cos_x - rel_pos.y * sin_x;
+    float x_r      = rel_pos.x / y_comp * y_comp_r;
+    float z_r      = rel_pos.z / y_comp * y_comp_r;
     vec3 rot_pos = vec3(x_r, y_r, z_r);
 
-    float dz         = (rot_pos - camera_pos).z;
+    float dz        = (rot_pos - camera_pos).z;
 
     if (dz == 0) {
         dz = 0.1;
@@ -42,7 +43,7 @@ void main() {
 
     mat3 proj = mat3 ( f,  0,  0,
                        0,  f,  0,
-                       0,  0,  1 );
+                       0,  0,  0 );
 
     vec3  proj_pos   = proj * rot_pos;
 
