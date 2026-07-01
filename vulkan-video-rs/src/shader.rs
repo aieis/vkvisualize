@@ -44,6 +44,43 @@ impl ShaderMesh  {
     }
 }
 
+#[register_shader("special_mesh")]
+pub struct ShaderSpecialMesh { }
+impl ShaderSpecialMesh  {
+    pub fn pipeline_descriptor() -> PipelineDescriptor {
+        let ubo_layout_bindings = vec![];
+
+        let vertex_bindings = vec![
+            vk::VertexInputBindingDescription::default()
+                .binding(0)
+                .stride(std::mem::size_of::<[f32; 3]>() as u32)
+                .input_rate(vk::VertexInputRate::VERTEX),
+            vk::VertexInputBindingDescription::default()
+                .binding(1)
+                .stride(std::mem::size_of::<[f32; 3]>() as u32)
+                .input_rate(vk::VertexInputRate::VERTEX)
+        ];
+
+        let vertex_attributes = vec![
+            vk::VertexInputAttributeDescription::default()
+                .binding(0)
+                .location(0)
+                .format(vk::Format::R32G32_SFLOAT),
+            vk::VertexInputAttributeDescription::default()
+                .binding(1)
+                .location(1)
+                .format(vk::Format::R32G32B32_SFLOAT)
+        ];
+
+        PipelineDescriptor {
+            ubo_layout_bindings,
+            vertex_bindings,
+            vertex_attributes,
+        }
+    }
+}
+
+
 #[register_shader("triangle")]
 pub struct ShaderRect {}
 impl ShaderRect {

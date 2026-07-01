@@ -53,6 +53,11 @@ impl Mesh {
         self.dirty_vertices = true;
     }
 
+    pub fn set_colour(&mut self, colour: [f32; 3]) {
+        self.colour.fill(colour);
+        self.dirty_colour = true;
+    }
+
 
     pub fn size_vrt(&self) -> usize {
         std::mem::size_of_val(&self.vertices[..])

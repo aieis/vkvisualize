@@ -323,7 +323,7 @@ impl VkBase {
                 );
 
                 unsafe {
-                    self.device.logical.device_wait_idle();
+                    let _ = self.device.logical.device_wait_idle();
                     self.device.logical.destroy_pipeline(pso.graphics, None);
                     self.device.logical.destroy_pipeline_layout(pso.layout, None);
                 }
