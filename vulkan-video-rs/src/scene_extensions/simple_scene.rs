@@ -18,7 +18,7 @@ impl SimpleScene
         let mut cube = cube::make_cube(0.0, 0.0, 0.0, 0.5, [0.0, 1.0, 0.0]);
 
         cube.rotate_z(45_f32.to_radians());
-        cube.rotate_y(45_f32.to_radians());
+        cube.rotate_y(60_f32.to_radians());
 
 
         let mesh_bundles = vec![
