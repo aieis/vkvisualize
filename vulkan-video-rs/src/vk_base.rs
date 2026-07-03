@@ -50,7 +50,7 @@ impl VkBase {
         let framebuffers    = VkBase::create_framebuffers(&device, &render_pass, &image_views, &swapchain);
         let commands        = VkBase::create_command_pools(&device, image_views.len(), 1);
         let spare_command   = VkBase::create_command_pools(&device, 1, max_in_flight).remove(0);
-        let sync_objects    = VkBase::create_sync_objects(&device, max_in_flight);
+        let sync_objects    = VkBase::create_sync_objects(&device, image_views.len());
 
         let descriptor_pool = VkBase::create_descriptor_pool(&device, swapchain.images.len());
 

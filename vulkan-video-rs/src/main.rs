@@ -7,8 +7,6 @@ mod devices;
 mod drawable;
 mod primitives;
 mod utils;
-mod rhi;
-mod scene;
 mod scene_extensions;
 mod geometry;
 
