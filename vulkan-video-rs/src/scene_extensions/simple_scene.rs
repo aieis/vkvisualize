@@ -15,14 +15,24 @@ impl SimpleScene
 {
     pub fn new(base: &VkBase) -> SimpleScene {
 
-        let mut cube = cube::make_cube(0.0, 0.0, 0.0, 0.5, [0.0, 1.0, 0.0]);
+        let mut cube_a = cube::make_cube(0.0, -12.0, 0.0, 20.0, [0.0, 0.0, 1.0]);
+        cube_a.rotate_x(85_f32.to_radians());
 
-        cube.rotate_z(45_f32.to_radians());
-        cube.rotate_y(60_f32.to_radians());
+        let mut cube_b = cube::make_cube(0.0, 0.0, 0.0, 0.5, [0.0, 1.0, 0.0]);
+        cube_b.rotate_z(45_f32.to_radians());
+        cube_b.rotate_y(60_f32.to_radians());
+
+
+        let mut cube_c = cube::make_cube(1.0, 0.0, 0.0, 0.5, [0.0, 1.0, 1.0]);
+        // cube_c.rotate_x(20_f32.to_radians());
+        cube_c.rotate_x(85_f32.to_radians());
+        
 
 
         let mesh_bundles = vec![
-            DrawableMesh::new(&base.device, cube)
+            DrawableMesh::new(&base.device, cube_a),
+            DrawableMesh::new(&base.device, cube_b),
+            DrawableMesh::new(&base.device, cube_c),
         ];
 
         let time = Instant::now();
@@ -40,8 +50,10 @@ impl SimpleScene
                 // mesh.mesh.rotate_z(1e-3);
                 // mesh.mesh.rotate_y(1e-3);
 
+                let g = mesh.mesh.colour[0][1];
+                let b = mesh.mesh.colour[0][2];
                 let et = scene.time.elapsed().as_secs_f32();
-                mesh.mesh.set_colour([et, et, et]);
+                mesh.mesh.set_colour([et, g, b]);
             }
 
 

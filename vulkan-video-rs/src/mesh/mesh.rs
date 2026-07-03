@@ -53,6 +53,27 @@ impl Mesh {
         self.dirty_vertices = true;
     }
 
+    pub fn rotate_x(&mut self, theta: f32) {
+
+        let (s, c) = theta.sin_cos();
+
+        let [cx, cy, cz] = self.center;
+
+        for i in 0..self.vertices.len() {
+            let [x, y, z] = self.vertices[i];
+            let [x, y, z] = [x - cx, y - cy, z - cz];
+
+            self.vertices[i] = [
+                cx + x,
+                cy + z * s + y * c,
+                cz + z * c - y * s,
+            ];
+        }
+
+        self.dirty_vertices = true;
+    }
+
+
     pub fn set_colour(&mut self, colour: [f32; 3]) {
         self.colour.fill(colour);
         self.dirty_colour = true;
