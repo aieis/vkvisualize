@@ -25,7 +25,7 @@ impl SimpleScene
 
         let mut cube_c = cube::make_cube(1.0, 0.0, 0.0, 0.5, [0.0, 1.0, 1.0]);
         // cube_c.rotate_x(20_f32.to_radians());
-        cube_c.rotate_x(85_f32.to_radians());
+        // cube_c.rotate_x(85_f32.to_radians());
         
 
 
@@ -49,6 +49,8 @@ impl SimpleScene
             for mesh in scene.mesh_bundles.iter_mut() {
                 // mesh.mesh.rotate_z(1e-3);
                 // mesh.mesh.rotate_y(1e-3);
+
+                mesh.mesh.rotate_x(1e-2);
 
                 let g = mesh.mesh.colour[0][1];
                 let b = mesh.mesh.colour[0][2];

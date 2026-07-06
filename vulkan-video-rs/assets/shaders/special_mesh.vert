@@ -6,23 +6,30 @@ layout(location = 0) out vec3 frag_color;
 layout(location = 0) in vec3 pos;
 layout(location = 1) in vec3 col;
 
+
+
 void main() {
 
 
     float time   = col.x;
     float period = radians(180) / 10;
 
-    vec3  camera_pos = vec3(0, 0, -10);
-    vec3  camera_dir = normalize(vec3(sin(time*period), cos(time*period), 1));
+    float ST = sin(time*period);
+    float CT = cos(time*period);
+
+    float STO = 1 - ST*ST;
+
+    vec3  camera_pos = vec3(0, 3, -5);
+    vec3  camera_dir = normalize(vec3(0, 1, 1));
     vec3  forward_dir = vec3(0, 0, 1);
 
 
-    float SIN_X = camera_dir.z;
-    float COS_X = camera_dir.x;
+    float SIN_X = camera_dir.x;
+    float COS_X = camera_dir.z;
 
-    mat3  view_x = mat3 (SIN_X, 0, COS_X,
-                         0  , 1,  0,
-                         COS_X, 0,  -SIN_X);
+    mat3  view_x = mat3 ( COS_X, 0,  SIN_X,
+                          0    , 1,  0,
+                         -SIN_X, 0,  COS_X);
 
     float SIN_Y = camera_dir.y;
     float COS_Y = camera_dir.z;
@@ -34,7 +41,7 @@ void main() {
 
 
     vec3 rel_pos  = pos - camera_pos;
-    vec3 rot_pos  = view_y * view_x * rel_pos;
+    vec3 rot_pos  = view_x * rel_pos;
 
     float dz        = abs(rot_pos.z);
 
