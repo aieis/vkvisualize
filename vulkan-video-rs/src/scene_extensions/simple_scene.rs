@@ -17,10 +17,12 @@ impl SimpleScene
 
         let mut cube_a = cube::make_cube(0.0, -12.0, 0.0, 20.0, [0.0, 0.0, 1.0]);
         cube_a.rotate_x(85_f32.to_radians());
+        cube_a.recompute_normals();
 
         let mut cube_b = cube::make_cube(0.0, 0.0, 0.0, 0.5, [0.0, 1.0, 0.0]);
         cube_b.rotate_z(45_f32.to_radians());
         cube_b.rotate_y(60_f32.to_radians());
+        cube_b.recompute_normals();
 
 
         let mut cube_c = cube::make_cube(1.0, 0.0, 0.0, 0.5, [0.0, 1.0, 1.0]);
@@ -51,6 +53,7 @@ impl SimpleScene
                 // mesh.mesh.rotate_y(1e-3);
 
                 mesh.mesh.rotate_x(1e-2);
+                mesh.mesh.recompute_normals();
 
                 let g = mesh.mesh.colour[0].y;
                 let b = mesh.mesh.colour[0].z;

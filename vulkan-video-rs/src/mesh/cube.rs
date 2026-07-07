@@ -35,15 +35,17 @@ pub fn make_cube(x: f32, y: f32, z: f32, length: f32, col: [f32; 3]) -> Mesh
 
     let center = Vec3::new(x, y, z);
 
+    let normals = Mesh::create_normals(&vertices, &indices);
+
     Mesh {
         center,
         vertices,
         colour,
         indices,
-        normals: vec![],
+        normals,
         dirty_vertices: true,
         dirty_colour: true,
         dirty_indices: true,
-        dirty_normals: false,
+        dirty_normals: true,
     }
 }

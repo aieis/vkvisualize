@@ -19,8 +19,14 @@ impl ShaderMesh  {
                 .binding(0)
                 .stride(std::mem::size_of::<[f32; 3]>() as u32)
                 .input_rate(vk::VertexInputRate::VERTEX),
+
             vk::VertexInputBindingDescription::default()
                 .binding(1)
+                .stride(std::mem::size_of::<[f32; 3]>() as u32)
+                .input_rate(vk::VertexInputRate::VERTEX),
+
+            vk::VertexInputBindingDescription::default()
+                .binding(2)
                 .stride(std::mem::size_of::<[f32; 3]>() as u32)
                 .input_rate(vk::VertexInputRate::VERTEX)
         ];
@@ -30,10 +36,17 @@ impl ShaderMesh  {
                 .binding(0)
                 .location(0)
                 .format(vk::Format::R32G32_SFLOAT),
+
             vk::VertexInputAttributeDescription::default()
                 .binding(1)
                 .location(1)
-                .format(vk::Format::R32G32B32_SFLOAT)
+                .format(vk::Format::R32G32B32_SFLOAT),
+
+            vk::VertexInputAttributeDescription::default()
+                .binding(2)
+                .location(2)
+                .format(vk::Format::R32G32B32_SFLOAT),
+
         ];
 
         PipelineDescriptor {
@@ -55,8 +68,14 @@ impl ShaderSpecialMesh  {
                 .binding(0)
                 .stride(std::mem::size_of::<[f32; 3]>() as u32)
                 .input_rate(vk::VertexInputRate::VERTEX),
+
             vk::VertexInputBindingDescription::default()
                 .binding(1)
+                .stride(std::mem::size_of::<[f32; 3]>() as u32)
+                .input_rate(vk::VertexInputRate::VERTEX),
+
+            vk::VertexInputBindingDescription::default()
+                .binding(2)
                 .stride(std::mem::size_of::<[f32; 3]>() as u32)
                 .input_rate(vk::VertexInputRate::VERTEX)
         ];
@@ -66,10 +85,17 @@ impl ShaderSpecialMesh  {
                 .binding(0)
                 .location(0)
                 .format(vk::Format::R32G32_SFLOAT),
+
             vk::VertexInputAttributeDescription::default()
                 .binding(1)
                 .location(1)
-                .format(vk::Format::R32G32B32_SFLOAT)
+                .format(vk::Format::R32G32B32_SFLOAT),
+
+            vk::VertexInputAttributeDescription::default()
+                .binding(2)
+                .location(2)
+                .format(vk::Format::R32G32B32_SFLOAT),
+
         ];
 
         PipelineDescriptor {
