@@ -1,3 +1,5 @@
+use crate::geometry::vec3::Vec3;
+
 use super::mesh::Mesh;
 
 pub fn make_cube(x: f32, y: f32, z: f32, length: f32, col: [f32; 3]) -> Mesh
@@ -8,12 +10,14 @@ pub fn make_cube(x: f32, y: f32, z: f32, length: f32, col: [f32; 3]) -> Mesh
     let y0  = y - l_2;
     let z0  = z - l_2;
 
+    let col = Vec3::new(col[0], col[1], col[2]);
+
     let vertices = vec![
         // back
-        [x0, y0, z0], [x0+l, y0, z0], [x0+l, y0+l, z0], [x0,  y0+l, z0],
+        Vec3::new(x0, y0, z0), Vec3::new(x0+l, y0, z0), Vec3::new(x0+l, y0+l, z0), Vec3::new(x0,  y0+l, z0),
 
         // front
-        [x0, y0, z0+l], [x0+l, y0, z0+l], [x0+l, y0+l, z0+l], [x0,  y0+l, z0+l],
+        Vec3::new(x0, y0, z0+l), Vec3::new(x0+l, y0, z0+l), Vec3::new(x0+l, y0+l, z0+l), Vec3::new(x0,  y0+l, z0+l),
     ];
 
     let colour = vec![
@@ -29,15 +33,17 @@ pub fn make_cube(x: f32, y: f32, z: f32, length: f32, col: [f32; 3]) -> Mesh
         0+4, 1+4, 2+4, 0+4, 2+4, 3+4
     ];
 
-    let center = [x, y, z];
+    let center = Vec3::new(x, y, z);
 
     Mesh {
         center,
         vertices,
         colour,
         indices,
+        normals: vec![],
         dirty_vertices: true,
         dirty_colour: true,
         dirty_indices: true,
+        dirty_normals: false,
     }
 }

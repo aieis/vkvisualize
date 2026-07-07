@@ -1,5 +1,6 @@
 use ash::vk;
 
+use crate::geometry::vec3::Vec3;
 use crate::mesh::Mesh;
 use crate::vk_bundles::BufferBundle;
 use crate::{utils::buffer, DeviceBundle, GraphicsPipelineBundle};
@@ -62,7 +63,7 @@ impl DrawableMesh {
 
             unsafe {
                 if mesh_bundle.mesh.dirty_vertices {
-                    let data_ptr = device.logical.map_memory(mesh_bundle.staging.memory, 0, size_vrt, vk::MemoryMapFlags::empty()).unwrap() as *mut [f32; 3];
+                    let data_ptr = device.logical.map_memory(mesh_bundle.staging.memory, 0, size_vrt, vk::MemoryMapFlags::empty()).unwrap() as *mut Vec3;
                     data_ptr.copy_from_nonoverlapping(mesh_bundle.mesh.vertices.as_ptr(), mesh_bundle.mesh.vertices.len());
                     device.logical.unmap_memory(mesh_bundle.staging.memory);
 
@@ -74,7 +75,7 @@ impl DrawableMesh {
                 }
 
                 if mesh_bundle.mesh.dirty_colour {
-                    let data_ptr = device.logical.map_memory(mesh_bundle.staging.memory, size_vrt, size_col, vk::MemoryMapFlags::empty()).unwrap() as *mut [f32; 3];
+                    let data_ptr = device.logical.map_memory(mesh_bundle.staging.memory, size_vrt, size_col, vk::MemoryMapFlags::empty()).unwrap() as *mut Vec3;
                     data_ptr.copy_from_nonoverlapping(mesh_bundle.mesh.colour.as_ptr(), mesh_bundle.mesh.colour.len());
                     device.logical.unmap_memory(mesh_bundle.staging.memory);
 

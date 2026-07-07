@@ -2,7 +2,6 @@ use anyhow::{anyhow, Result};
 
 use crate::primitives::texture2d::PixelFormat;
 
-#[allow(unused)]
 pub struct RecordData {
     pub width: u32,
     pub height: u32,
@@ -11,7 +10,6 @@ pub struct RecordData {
     pub frame_data: Vec<u16>,
 }
 
-#[allow(unused)]
 pub struct RecordPlayer {
     pub record_data: RecordData,
     pub stream_pos: usize,
@@ -19,7 +17,6 @@ pub struct RecordPlayer {
     pub last_frame_time: f32,
 }
 
-#[allow(unused)]
 impl RecordPlayer {
     pub fn new(file_path: &str) -> Result<RecordPlayer> {
         let record_data =  RecordData::from_file(file_path)?;

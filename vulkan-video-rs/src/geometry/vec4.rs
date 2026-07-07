@@ -1,3 +1,4 @@
+#[allow(unused)]
 #[repr(C)]
 pub struct Vec4 {
     pub x: f32,
@@ -6,6 +7,7 @@ pub struct Vec4 {
     pub w: f32
 }
 
+#[allow(unused)]
 impl Vec4 {
     pub const ZERO: Self = Self::of(0.0);
 
