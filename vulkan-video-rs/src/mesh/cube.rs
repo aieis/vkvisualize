@@ -26,11 +26,25 @@ pub fn make_cube(x: f32, y: f32, z: f32, length: f32, col: [f32; 3]) -> Mesh
     ];
 
     let indices = vec![
-        // front
-        0, 1, 2, 0, 2, 3,
-
         // back
-        0+4, 1+4, 2+4, 0+4, 2+4, 3+4
+        0, 2, 1, 0, 3, 2,
+
+        // front
+        4, 5, 6, 4, 6, 7,
+
+        // left
+        1, 6, 5, 1, 2, 6,
+
+        // right
+        4, 3, 0, 4, 7, 3,
+
+        // top
+        6, 3, 7, 6, 2, 3,
+
+        // bottom
+        1, 4, 0, 1, 5, 4
+
+
     ];
 
     let center = Vec3::new(x, y, z);

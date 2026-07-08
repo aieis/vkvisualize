@@ -7,6 +7,9 @@ layout(location = 0) in vec3 pos;
 layout(location = 1) in vec3 col;
 layout(location = 2) in vec3 normals;
 
+bool show_norm = false;
+
+vec3 light = vec3(0, 1, -1);
 
 void main() {
 
@@ -64,5 +67,14 @@ void main() {
 
     // frag_color = col;
     // frag_color = vec3(mod(col.x * 10, 60) / 60, 0.0, 1.0);
-    frag_color = vec3(0.0, col.y, col.z);
+
+    if (!show_norm) {
+
+        float light_cos = dot(normals,light);
+        float alpha = ((light_cos * -1) + 1) / 2;
+        float dark_factor = 0.8 * alpha;
+        frag_color = vec3(0.0, col.y, col.z) * ( 1 - dark_factor);
+    } else {
+        frag_color = normals;
+    }
 }
