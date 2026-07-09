@@ -11,6 +11,16 @@ bool show_norm = false;
 
 vec3 light = vec3(0, 1, -1);
 
+mat3 look_at(vec3 origin, vec3 target, float roll) {
+  vec3 rr = vec3(sin(roll), cos(roll), 0.0);
+  vec3 ww = normalize(target - origin);
+  vec3 uu = normalize(cross(ww, rr));
+  vec3 vv = normalize(cross(uu, ww));
+
+  return mat3(uu, vv, ww);
+}
+
+
 void main() {
 
 
@@ -22,8 +32,8 @@ void main() {
 
     float STO = 1 - ST*ST;
 
-    vec3  camera_pos = vec3(0, 3, -5);
-    vec3  camera_dir = normalize(vec3(0, 1, 1));
+    vec3  camera_pos = vec3(0, 0, -5);
+    vec3  camera_dir = normalize(vec3(ST, 0, sqrt(STO)));
     vec3  forward_dir = vec3(0, 0, 1);
 
 
@@ -44,7 +54,10 @@ void main() {
 
 
     vec3 rel_pos  = pos - camera_pos;
-    vec3 rot_pos  = view_x * rel_pos;
+
+    mat3 view = look_at(camera_pos, camera_dir, 0);
+
+    vec3 rot_pos  = view * rel_pos;
 
     float dz        = abs(rot_pos.z);
 

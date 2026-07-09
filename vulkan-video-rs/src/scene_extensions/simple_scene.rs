@@ -52,8 +52,8 @@ impl SimpleScene
                 // mesh.mesh.rotate_z(1e-3);
                 // mesh.mesh.rotate_y(1e-3);
 
-                mesh.mesh.rotate_x(1e-2);
-                mesh.mesh.recompute_normals();
+                // mesh.mesh.rotate_x(1e-2);
+                // mesh.mesh.recompute_normals();
 
                 let g = mesh.mesh.colour[0].y;
                 let b = mesh.mesh.colour[0].z;
