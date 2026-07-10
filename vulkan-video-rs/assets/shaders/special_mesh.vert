@@ -20,6 +20,73 @@ mat3 look_at(vec3 origin, vec3 target, float roll) {
   return mat3(uu, vv, ww);
 }
 
+mat4 look_at_2(vec3 eye, vec3 center, vec3 up) {
+    mat4 dest = mat4(0.0);
+
+    vec3 f = normalize(center - eye);
+    vec3 s = cross(up, f);
+    vec3 u = cross(f, s);
+
+    dest[0][0] = s.x;
+    dest[0][1] = u.x;
+    dest[0][2] = f.x;
+
+    dest[1][0] = s.y;
+    dest[1][1] = u.y;
+    dest[1][2] = f.y;
+
+    dest[2][0] = s.z;
+    dest[2][1] = u.z;
+    dest[2][2] = f.z;
+
+    dest[3][0] = -dot(s, eye);
+    dest[3][1] = -dot(u, eye);
+    dest[3][2] = -dot(f, eye);
+
+    dest[0][3] = 0.0;
+    dest[1][3] = 0.0;
+    dest[2][3] = 0.0;
+    dest[3][3] = 1.0;
+
+    return dest;
+}
+
+mat4 projection_2(float fovy, float aspect) {
+    mat4 dest = mat4(0.0);
+
+    float farz = 100.0;
+    float nearz = 0.1;
+    
+
+    float f = 1.0 / tan(fovy * 0.5);
+    float fn = 1.0 / (nearz - farz);
+    
+    dest[0][0] = f / aspect;
+    dest[1][1] = f;
+    dest[2][2] = -farz * fn;
+    dest[2][3] = 1.0;
+    dest[3][2] = nearz * farz * fn;
+    
+    return dest;
+}
+
+mat4 projection(float fov_y, float aspect) {
+    float f = cos(fov_y / 2) / sin(fov_y / 2);
+
+    float zf = 150;
+    float zn = 0.1;
+
+    float t1 = (zf + zn) / (zn - zf);
+    float t2 = (2*zf*zn) / (zn - zf);
+
+    mat4 proj = mat4(f/aspect, 0, 0,  0,
+                     0       , f, 0,  0,
+                     0       , 0, t1, t2,
+                     0       , 0, -1, 0);
+
+    return proj;
+}
+
 
 void main() {
 
@@ -32,8 +99,8 @@ void main() {
 
     float STO = 1 - ST*ST;
 
-    vec3  camera_pos = vec3(0, 0, -5);
-    vec3  camera_dir = normalize(vec3(ST, 0, sqrt(STO)));
+    vec3  camera_pos = vec3(0, 4, 30);
+    vec3  camera_dir = normalize(vec3(0, -1, -1));
     vec3  forward_dir = vec3(0, 0, 1);
 
 
@@ -53,9 +120,9 @@ void main() {
                          );
 
 
-    vec3 rel_pos  = pos - camera_pos;
+    vec3 rel_pos  = pos; //pos - camera_pos;
 
-    mat3 view = look_at(camera_pos, camera_dir, 0);
+    mat3 view = look_at(camera_pos, camera_pos + camera_dir, 0);
 
     vec3 rot_pos  = view * rel_pos;
 
@@ -76,7 +143,13 @@ void main() {
 
     vec3  proj_pos   = proj * rot_pos;
 
-    gl_Position = vec4(proj_pos, 1.0);
+
+    mat4 proj_p = projection_2(radians(45), 1);
+    mat4 view_2 = look_at_2(camera_pos, camera_pos+camera_dir, vec3(0, -1, 0));
+
+    vec4 pre_ready = proj_p * view_2 * vec4(pos, 1.0);
+    gl_Position = pre_ready;
+    // gl_Position = vec4(proj_pos, 1.0);
 
     // frag_color = col;
     // frag_color = vec3(mod(col.x * 10, 60) / 60, 0.0, 1.0);
