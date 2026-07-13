@@ -1,4 +1,4 @@
-use std::ops;
+use std::{ops, fmt};
 
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -11,7 +11,7 @@ pub struct Vec3 {
 impl Vec3 {
     pub const ZERO: Self = Self::of(0.0);
 
-    pub const X: Self = Self::new(0.0, 0.0, 0.0);
+    pub const X: Self = Self::new(1.0, 0.0, 0.0);
     pub const Y: Self = Self::new(0.0, 1.0, 0.0);
     pub const Z: Self = Self::new(0.0, 0.0, 1.0);
 
@@ -79,5 +79,11 @@ impl ops::SubAssign<Vec3> for Vec3 {
         self.x -= rhs.x;
         self.y -= rhs.y;
         self.z -= rhs.z;
+    }
+}
+
+impl fmt::Display for Vec3 {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({:>6.2}, {:>6.2}, {:>6.2})", self.x, self.y, self.z)
     }
 }
