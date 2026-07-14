@@ -9,6 +9,7 @@ mod primitives;
 mod utils;
 mod scene_extensions;
 mod geometry;
+mod rhi;
 
 use std::time::{Duration, Instant};
 

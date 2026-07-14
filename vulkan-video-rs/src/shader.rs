@@ -61,7 +61,14 @@ impl ShaderMesh  {
 pub struct ShaderSpecialMesh { }
 impl ShaderSpecialMesh  {
     pub fn pipeline_descriptor() -> PipelineDescriptor {
-        let ubo_layout_bindings = vec![];
+        let ubo_layout_bindings = vec![
+            DescSetBinding {
+                binding: 0,
+                descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+                descriptor_count: 1,
+                stage_flags: vk::ShaderStageFlags::FRAGMENT,
+            }
+        ];
 
         let vertex_bindings = vec![
             vk::VertexInputBindingDescription::default()
