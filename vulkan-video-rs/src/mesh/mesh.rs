@@ -19,6 +19,15 @@ pub struct Mesh {
 
 impl Mesh {
 
+    pub fn translate(&mut self, t: Vec3) {
+        self.center += t;
+        for i in 0..self.vertices.len() {
+            self.vertices[i] += t;
+        }
+
+        self.dirty_vertices = true;
+    }
+
     pub fn rotate_z(&mut self, theta: f32) {
 
         let (s, c) = theta.sin_cos();

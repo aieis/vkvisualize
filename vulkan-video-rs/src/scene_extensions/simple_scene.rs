@@ -11,6 +11,10 @@ pub struct SimpleScene
 {
     pub time            : Instant,
     pub mesh_bundles    : Vec<DrawableMesh>,
+
+
+    going_left: bool,
+    tranlation_amount: f32,
 }
 
 impl SimpleScene
@@ -21,10 +25,9 @@ impl SimpleScene
         // cube_a.rotate_x(85_f32.to_radians());
         // cube_a.recompute_normals();
 
-        let mut prism_b = prism::make_prism(Vec3::of(0.0), Vec3::new(0.75, 0.5, 1.0), Vec3::new(0.0, 1.0, 0.0));
-        // prism_b.rotate_z(45_f32.to_radians());
-        // prism_b.rotate_y(60_f32.to_radians());
-        // prism_b.recompute_normals();
+        let mut prism_b = prism::make_prism(Vec3::new(0.0, 0.0, -5.0), Vec3::new(2.0, 3.0, 8.0), Vec3::new(0.0, 1.0, 0.0));
+        // prism_b.rotate_x(10_f32.to_radians());
+        prism_b.recompute_normals();
 
 
         // let mut cube_c = cube::make_cube(1.0, 0.0, 0.0, 0.5, [0.0, 0.1, 0.1]);
@@ -46,18 +49,35 @@ impl SimpleScene
 
         Self {
             time,
-            mesh_bundles
+            mesh_bundles,
+            going_left: false,
+            tranlation_amount: 0.0,
         }
     }
 
     pub fn update(base: &VkBase, cb: &vk::CommandBuffer, scenes: &mut [SimpleScene]) {
         for scene in scenes.iter_mut() {
 
+            let v = 1e-2;
+
+            if scene.tranlation_amount >= 10.0 {
+                scene.going_left = !scene.going_left;
+                scene.tranlation_amount = 0.0;
+            } else {
+                scene.tranlation_amount += v;
+            }
+
+            let d = (Vec3::X + Vec3::Y) * 0.5;
+
+            let v = if scene.going_left { d * -v } else { d * v };
+
             for mesh in scene.mesh_bundles.iter_mut() {
-                mesh.mesh.rotate_z(1e-3);
-                mesh.mesh.rotate_y(1e-2);
+                // mesh.mesh.rotate_z(1e-3);
+
+                mesh.mesh.translate(v);
+                // mesh.mesh.rotate_y(1e-2);
                 // mesh.mesh.rotate_x(1e-2);
-                mesh.mesh.recompute_normals();
+                // mesh.mesh.recompute_normals();
 
                 // let g = mesh.mesh.colour[0].y;
                 // let b = mesh.mesh.colour[0].z;

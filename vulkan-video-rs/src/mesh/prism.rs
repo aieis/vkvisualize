@@ -34,8 +34,6 @@ pub fn make_prism(location: Vec3, dimensions: Vec3, col: Vec3) -> Mesh
 
     ];
 
-    println!("{} {} {} {}", vertices[16], vertices[17], vertices[18], vertices[19]);
-
     // let colour = vec![
     //     col, col, col, col,
     //     col, col, col, col,

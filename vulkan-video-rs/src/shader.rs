@@ -5,7 +5,7 @@ use std::{
 use ash::vk;
 use comptime_register_macro::{register_shader, shaders_registry};
 
-use crate::vk_bundles::{DescSetBinding, PipelineDescriptor, DeviceBundle};
+use crate::{geometry::vec3::Vec3, vk_bundles::{DescSetBinding, DeviceBundle, PipelineDescriptor}};
 
 #[register_shader("mesh")]
 pub struct ShaderMesh { }
@@ -66,17 +66,17 @@ impl ShaderSpecialMesh  {
         let vertex_bindings = vec![
             vk::VertexInputBindingDescription::default()
                 .binding(0)
-                .stride(std::mem::size_of::<[f32; 3]>() as u32)
+                .stride(std::mem::size_of::<Vec3>() as u32)
                 .input_rate(vk::VertexInputRate::VERTEX),
 
             vk::VertexInputBindingDescription::default()
                 .binding(1)
-                .stride(std::mem::size_of::<[f32; 3]>() as u32)
+                .stride(std::mem::size_of::<Vec3>() as u32)
                 .input_rate(vk::VertexInputRate::VERTEX),
 
             vk::VertexInputBindingDescription::default()
                 .binding(2)
-                .stride(std::mem::size_of::<[f32; 3]>() as u32)
+                .stride(std::mem::size_of::<Vec3>() as u32)
                 .input_rate(vk::VertexInputRate::VERTEX)
         ];
 
@@ -84,7 +84,7 @@ impl ShaderSpecialMesh  {
             vk::VertexInputAttributeDescription::default()
                 .binding(0)
                 .location(0)
-                .format(vk::Format::R32G32_SFLOAT),
+                .format(vk::Format::R32G32B32_SFLOAT),
 
             vk::VertexInputAttributeDescription::default()
                 .binding(1)
