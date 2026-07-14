@@ -58,7 +58,7 @@ impl SimpleScene
     pub fn update(base: &VkBase, cb: &vk::CommandBuffer, scenes: &mut [SimpleScene]) {
         for scene in scenes.iter_mut() {
 
-            let v = 1e-2;
+            let v = 1e-2 * 2.0;
 
             if scene.tranlation_amount >= 10.0 {
                 scene.going_left = !scene.going_left;

@@ -55,6 +55,8 @@ void main() {
                          0, SIN_Y,  COS_Y
                          );
 
+    rot_pos.y *= -1;
+
 
 
     float dz        = abs(rel_pos.z);
