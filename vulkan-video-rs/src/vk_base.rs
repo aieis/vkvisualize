@@ -815,10 +815,11 @@ impl VkBase {
     fn create_descriptor_pool(device: &DeviceBundle, swapchain_images_size: usize) -> vk::DescriptorPool {
         let pool_sizes = [
             vk::DescriptorPoolSize { descriptor_count: swapchain_images_size as u32, ty: vk::DescriptorType::COMBINED_IMAGE_SAMPLER },
+            vk::DescriptorPoolSize { descriptor_count: swapchain_images_size as u32, ty: vk::DescriptorType::UNIFORM_BUFFER },
         ];
         let descriptor_pool_create_info = vk::DescriptorPoolCreateInfo::default()
             .flags(vk::DescriptorPoolCreateFlags::empty())
-            .max_sets(swapchain_images_size as u32)
+            .max_sets(swapchain_images_size as u32 * pool_sizes.len() as u32)
             .pool_sizes(&pool_sizes);
 
         unsafe {

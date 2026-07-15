@@ -64,9 +64,9 @@ impl ShaderSpecialMesh  {
         let ubo_layout_bindings = vec![
             DescSetBinding {
                 binding: 0,
-                descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+                descriptor_type: vk::DescriptorType::UNIFORM_BUFFER,
                 descriptor_count: 1,
-                stage_flags: vk::ShaderStageFlags::FRAGMENT,
+                stage_flags: vk::ShaderStageFlags::VERTEX,
             }
         ];
 

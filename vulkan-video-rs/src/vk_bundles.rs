@@ -56,7 +56,8 @@ pub struct SyncObjectsBundle {
 pub struct BufferBundle {
     pub buffer: vk::Buffer,
     pub memory: vk::DeviceMemory,
-    pub offset: u32
+    pub offset: u64,
+    pub size: u64
 }
 
 pub struct ImageBundle {

@@ -26,5 +26,5 @@ pub fn create_buffer(device: &DeviceBundle, size: u64, usage: vk::BufferUsageFla
     unsafe { device.logical.bind_buffer_memory(buffer, memory, 0)?; }
 
 
-    Ok( BufferBundle { buffer, memory, offset: 0 } )
+    Ok( BufferBundle { buffer, memory, offset: 0, size } )
 }

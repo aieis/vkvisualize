@@ -20,6 +20,7 @@ use primitives::texture2d::{PixelFormat, Texture2d};
 use scene_extensions::simple_scene::SimpleScene;
 use utils::image::{begin_single_time_command, end_single_time_command};
 use vk_bundles::*;
+use rhi::allocator::{Allocator, AllocatorSizeInfo};
 
 use ash::vk;
 
@@ -41,6 +42,7 @@ struct App {
     video_device: RecordPlayer,
     close: bool,
 
+    allocator: Allocator,
     shader_poll_time: Instant
 }
 
@@ -57,6 +59,13 @@ impl App {
 
         let video_device = RecordPlayer::from_buffer(include_bytes!("../assets/recordings/record1.rdbin")).unwrap();
         let base = VkBase::new(window, 3, "./assets/shaders");
+        let mut allocator = Allocator::new(&base, AllocatorSizeInfo {
+            staging: 10*1024*1024,
+            device_vertex: 10*1024*1024,
+            device_index: 10*1024*1024,
+            uniform_buffer: 10*1024*1024,
+        });
+
 
         let rect_bundles = vec![
             Drawable2d::new(&base.device, Rect::new(-0.9, -0.9, 0.5, 0.5, [1.0, 0.0, 0.0])),
@@ -69,7 +78,7 @@ impl App {
         ];
 
         let scenes = vec![
-            SimpleScene::new(&base)
+            SimpleScene::new(&base, &mut allocator)
         ];
 
         let data = unsafe { video_device.current_frame[0..video_device.size() / 2].align_to::<u8>().1.to_vec() };
@@ -86,6 +95,7 @@ impl App {
 
         end_single_time_command(&base.device, base.spare_command.pool, base.device.present_queue, cb);
 
+
         Self {
             video_device,
             base,
@@ -93,6 +103,7 @@ impl App {
             mesh_bundles,
             textures,
             scenes,
+            allocator,
             shader_poll_time: Instant::now() + SHADER_POLL_INTERVAL,
             close: false,
         }
@@ -171,7 +182,8 @@ impl App {
         // DrawableTexture::draw(&self.base.device, cb, &self.base.graphics_pipelines[ShaderTexture::ID], self.base.current_frame, &self.textures);
         // Drawable2d::draw(&self.base.device, &cb, &self.base.graphics_pipelines[ShaderRect::ID], &self.rect_bundles);
         // DrawableMesh::draw(&self.base.device, &cb, &self.base.graphics_pipelines[ShaderMesh::ID], &self.mesh_bundles);
-        SimpleScene::draw(&mut self.base, &cb, &self.scenes);
+        let current_image = self.base.current_frame;
+        SimpleScene::draw(&mut self.base, &cb, &self.scenes, current_image);
         self.base.render(&cb, image_index);
     }
 
@@ -243,6 +255,8 @@ impl Drop for App {
                 self.base.device.logical.destroy_pipeline(self.base.graphics_pipelines[i].graphics, None);
                 self.base.device.logical.destroy_pipeline_layout(self.base.graphics_pipelines[i].layout, None);
             }
+
+            self.allocator.release(&self.base.device);
         }
     }
 }

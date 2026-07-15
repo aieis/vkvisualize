@@ -139,6 +139,7 @@ impl DrawableMesh {
         let command_buffer = *command_buffer;
         unsafe {
             device.logical.cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, graphics_pipeline.graphics);
+            
             for i in 0..mesh_bundles.len() {
                 device.logical.cmd_bind_vertex_buffers(command_buffer, 0, &[mesh_bundles[i].vbo.buffer, mesh_bundles[i].col.buffer, mesh_bundles[i].normals.buffer], &[0, 0, 0]);
                 device.logical.cmd_bind_index_buffer(command_buffer, mesh_bundles[i].ind.buffer, 0, vk::IndexType::UINT16);

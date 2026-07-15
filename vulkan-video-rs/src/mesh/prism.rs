@@ -34,29 +34,20 @@ pub fn make_prism(location: Vec3, dimensions: Vec3, col: Vec3) -> Mesh
 
     ];
 
-    // let colour = vec![
-    //     col, col, col, col,
-    //     col, col, col, col,
-    //     col, col, col, col,
-    //     col, col, col, col,
-    //     col, col, col, col,
-    //     col, col, col, col,
-    // ];
-
     let colour = vec![
-        RED, RED, RED, RED,
-        GREEN, GREEN, GREEN, GREEN,
-        BLUE, BLUE, BLUE, BLUE,
-        CYAN, CYAN, CYAN, CYAN,
-        YELLOW, YELLOW, YELLOW, YELLOW,
-        VIOLET, VIOLET, VIOLET, VIOLET,
+        col, col, col, col,
+        col, col, col, col,
+        col, col, col, col,
+        col, col, col, col,
+        col, col, col, col,
+        col, col, col, col,
     ];
 
 
     let indices = vec![
-         0,  1,  2,  0,  2,  3,        // back
-         4,  6,  5,  4,  7,  6,        // front
-         8, 10,  9,  8, 11, 10,        // left
+        0,  1,  2,  0,  2,  3,        // back
+        4,  6,  5,  4,  7,  6,        // front
+        8, 10,  9,  8, 11, 10,        // left
         12, 13, 14, 12, 14, 15,        // right
         16, 18, 17, 16, 19, 18,        // top
         20, 21, 22, 20, 22, 23,        // bottom
@@ -77,4 +68,23 @@ pub fn make_prism(location: Vec3, dimensions: Vec3, col: Vec3) -> Mesh
         dirty_indices: true,
         dirty_normals: true,
     }
+}
+
+
+pub fn make_debug_prism(location: Vec3, dimensions: Vec3) -> Mesh {
+
+    let mut mesh = make_prism(location, dimensions, Vec3::of(0.5));
+
+    let colour = vec![
+        RED, RED, RED, RED,
+        GREEN, GREEN, GREEN, GREEN,
+        BLUE, BLUE, BLUE, BLUE,
+        CYAN, CYAN, CYAN, CYAN,
+        YELLOW, YELLOW, YELLOW, YELLOW,
+        VIOLET, VIOLET, VIOLET, VIOLET,
+    ];
+
+    mesh.colour = colour;
+
+    return mesh;
 }
