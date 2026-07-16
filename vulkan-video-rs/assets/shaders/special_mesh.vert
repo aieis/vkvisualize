@@ -15,7 +15,7 @@ layout(binding = 0) uniform Shared
 
 bool show_norm = false;
 
-vec3 light = vec3(0, 1, -1);
+vec3 light = vec3(-1, 0, -1);
 
 
 #define TARGET_COL_COLOUR  0
@@ -25,70 +25,84 @@ vec3 light = vec3(0, 1, -1);
 #define TARGET 0
 
 
+#define PI 3.141592653589793
+
+
 void main() {
 
-    float time   = col.x;
+    float time   = S.Time;
     float period = radians(180) / 10;
 
+    float period_s = 10;
+    float theta = mod(time, period_s) / period_s * PI / 2 - PI / 4;
+
     float ST = sin(time*period/2);
-    float CT = cos(time*period);
+    float CT = cos(time*period/2);
 
     float STO = 1 - ST*ST;
 
     vec3  camera_pos = vec3(0, 0, 7);
-    vec3  camera_dir = normalize(vec3(0, 0, -1));
+    vec3  camera_dir = normalize(vec3(1, 0, -1));
     vec3  forward_dir = vec3(0, 0, 1);
 
     vec3 rel_pos  = pos - camera_pos;
+
+    // theta is the rotation around the y axis
+
+    float SIN_Y = sin(theta);
+    float COS_Y = cos(theta);
+
+    mat3  view_x = mat3 ( COS_Y, 0, -SIN_Y,
+                          0    , 1,  0,
+                          SIN_Y, 0,  COS_Y);
     
 
-    float SIN_X = camera_dir.x;
-    float COS_X = camera_dir.z;
+    // float XZ    = length(camera_dir.xz);
+    // float SIN_X = camera_dir.x / XZ;
+    // float COS_X = camera_dir.z / XZ;
 
-    mat3  view_x = mat3 ( COS_X, 0,  SIN_X,
-                          0    , 1,  0,
-                         -SIN_X, 0,  COS_X);
+    // mat3  view_x = mat3 ( COS_X, 0,  SIN_X,
+    //                       0    , 1,  0,
+    //                      -SIN_X, 0,  COS_X);
 
-    view_x = transpose(view_x);
+    // view_x = transpose(view_x);
     vec3 rot_pos  = view_x * rel_pos;
-    rot_pos.x *= -1;
+    // rot_pos.x *= -1;
 
-    float SIN_Y = camera_dir.y;
-    float COS_Y = camera_dir.z;
+    // float SIN_Y = camera_dir.y;
+    // float COS_Y = camera_dir.z;
 
-    mat3  view_y = mat3 (1    , 0,  0,
-                         0, COS_Y, -SIN_Y,
-                         0, SIN_Y,  COS_Y
-                         );
+    // mat3  view_y = mat3 (1    , 0,  0,
+    //                      0, COS_Y, -SIN_Y,
+    //                      0, SIN_Y,  COS_Y
+    //                      );
 
     rot_pos.y *= -1;
 
 
-
-    float dz        = abs(rel_pos.z);
-
-    if (dz == 0) {
-        dz = 0.1;
-    }
+    float dz        = rot_pos.z;
 
     // // x' = x * focal_length / dz
     float focal_length = 1;
 
-    float f = focal_length / dz;
+    float f = focal_length;
+
+    float F = 30.0;
+    float N = 0.1;
 
     mat3 proj = mat3 ( f,  0,  0,
                        0,  f,  0,
                        0,  0,  0 );
 
     vec3  proj_pos   = proj * rot_pos;
+    proj_pos.z = dz * (dz - N) / (F-N); // 
 
-    gl_Position = vec4(proj_pos, 1.0);
-
+    gl_Position = vec4(proj_pos, -dz);
 
     if (TARGET == TARGET_COL_COLOUR) {
         float light_cos = dot(normals,light);
         float alpha = ((light_cos * -1) + 1) / 2;
-        float dark_factor = 0.5 * alpha;
+        float dark_factor = 0.8 * alpha;
 
         frag_color = vec3(col.x, col.y, col.z) * ( 1 - dark_factor);
 
