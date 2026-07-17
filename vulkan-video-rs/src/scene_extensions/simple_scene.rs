@@ -38,6 +38,7 @@ impl SimpleScene
         cube_c.recompute_normals();
 
         let cube_d = prism::make_prism(Vec3::new(-5.0, 0.0, 0.0), Vec3::of(0.5), Vec3::new(10.0, 0.0, 0.0));
+        let cube_e = prism::make_debug_prism(Vec3::new(0.0, 0.0, 30.0), Vec3::of(5.0));
 
 
         let static_meshes = vec![
@@ -48,6 +49,7 @@ impl SimpleScene
             DrawableMesh::new(&base.device, prism_b),
             DrawableMesh::new(&base.device, cube_c),
             DrawableMesh::new(&base.device, cube_d),
+            DrawableMesh::new(&base.device, cube_e),
         ];
 
         let staging = allocator.alloc(BufferType::Staging, std::mem::size_of::<f32>() as u64 * 2).unwrap();

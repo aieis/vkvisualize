@@ -82,6 +82,7 @@ void main() {
     world_pos = view * vec4(pos, 1.0);
     world_pos.z *= -1;
 
+
     mat4 proj = create_projection_matrix(FOV, S.Aspect);
     vec4 proj_pos = proj * world_pos;
 
