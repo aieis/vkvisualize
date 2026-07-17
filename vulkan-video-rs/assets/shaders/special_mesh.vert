@@ -1,6 +1,8 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
+#include "utils/camera.glsl"
+
 layout(location = 0) out vec3 frag_color;
 
 layout(location = 0) in vec3 pos;
@@ -36,7 +38,7 @@ void main() {
 
     float period_s = 10;
     float theta = sin(time / period_s * PI / 2 - PI / 4) * PI / 4;
-    float theta_else = cos(time / period_s * PI / 2 - PI / 4) * PI / 4;
+    float theta_else = 0; //cos(time / period_s * PI / 2 - PI / 4) * PI / 4;
     float FOV   = PI / 4;
 
     float ST = sin(time*period/2);
@@ -45,8 +47,7 @@ void main() {
     float STO = 1 - ST*ST;
 
     vec3  camera_pos = vec3(0, 0, 7);
-    vec3  camera_dir = normalize(vec3(1, 0, -1));
-    vec3  forward_dir = vec3(0, 0, 1);
+    vec3  camera_dir = normalize(vec3(ST, 0, CT));
 
     vec3 rel_pos  = pos - camera_pos;
 
@@ -75,29 +76,14 @@ void main() {
     rot_pos.y *= -1;
 
 
-    float dz        = rot_pos.z;
+    vec4 world_pos = vec4(rot_pos, 1.0);
 
-    float F = 30.0;
-    float N = 0.1;
-    float C = 1 / tan(FOV);
+    mat4 view = create_view_matrix(camera_pos, camera_dir, vec3(0, 1, 0));
+    world_pos = view * vec4(pos, 1.0);
+    world_pos.z *= -1;
 
-    float X = C / S.Aspect;
-
-
-    // z' = Az + B
-    // z'' = z' / -z
-    // So we need an A and B such that z' gets mapped to 0 when z==N and 1 when at z==F
-    // (A*N+B) / (-N) = 0 and (A*F+B)/(-F) = 1
-    float A = -F/(F-N);
-    float B = -(N*F)/(F-N);
-
-    mat4  proj = mat4 ( X,  0,  0, 0,
-                        0,  C,  0, 0,
-                        0,  0,  A, B,
-                        0,  0, -1, 0);
-
-    proj = transpose(proj);
-    vec4 proj_pos = proj * vec4(rot_pos, 1.0);
+    mat4 proj = create_projection_matrix(FOV, S.Aspect);
+    vec4 proj_pos = proj * world_pos;
 
     gl_Position = proj_pos;
 
@@ -106,7 +92,7 @@ void main() {
         float alpha = ((light_cos * -1) + 1) / 2;
         float dark_factor = 0.8 * alpha;
 
-        frag_color = vec3(col.x, col.y, col.z) * ( 1 - dark_factor);
+        frag_color = 0.2 * vec3(col.x, col.y, col.z) * ( 1 - dark_factor);
 
     } else if (TARGET == TARGET_COL_DEPTH) {
         float dz_col = (rot_pos.z - camera_pos.z - 1) / 8.0;
