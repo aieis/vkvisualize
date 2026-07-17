@@ -50,8 +50,8 @@ impl SimpleScene
             DrawableMesh::new(&base.device, cube_d),
         ];
 
-        let staging = allocator.alloc(BufferType::Staging, std::mem::size_of::<f32>() as u64).unwrap();
-        let uniform = allocator.alloc(BufferType::Uniform, std::mem::size_of::<f32>() as u64).unwrap();
+        let staging = allocator.alloc(BufferType::Staging, std::mem::size_of::<f32>() as u64 * 2).unwrap();
+        let uniform = allocator.alloc(BufferType::Uniform, std::mem::size_of::<f32>() as u64 * 2).unwrap();
 
         let descriptor_sets = Self::create_descriptor_sets(&base.device, base.descriptor_pool, base.graphics_pipelines[ShaderSpecialMesh::ID].ubo.as_ref().unwrap()[0], &uniform, base.max_in_flight);
 
@@ -70,7 +70,7 @@ impl SimpleScene
         }
     }
 
-    pub fn update(base: &VkBase, cb: &vk::CommandBuffer, scenes: &mut [SimpleScene]) {
+    pub fn update(base: &VkBase, cb: &vk::CommandBuffer, scenes: &mut [SimpleScene], aspect_ratio: f32) {
         for scene in scenes.iter_mut() {
 
             let mut v = 1e-2;
@@ -100,12 +100,11 @@ impl SimpleScene
             DrawableMesh::update(&base.device, &cb, &mut scene.static_meshes);
 
 
-            let mut et = scene.time.elapsed().as_secs_f32();
-            let et = &mut et;
+            let mut et = [scene.time.elapsed().as_secs_f32(), aspect_ratio];
 
             unsafe {
                 let data_ptr = base.device.logical.map_memory(scene.staging.memory, scene.staging.offset, scene.staging.size, vk::MemoryMapFlags::empty()).unwrap() as *mut f32;
-                data_ptr.copy_from_nonoverlapping(et as *mut f32, scene.staging.size as usize);
+                data_ptr.copy_from_nonoverlapping(et.as_mut_ptr(), scene.staging.size as usize);
                 base.device.logical.unmap_memory(scene.staging.memory);
 
                 let copy_region = [

@@ -139,7 +139,8 @@ impl App {
         Drawable2d::update(&self.base.device, &cb, &mut self.rect_bundles);
         DrawableMesh::update(&self.base.device, &cb, &mut self.mesh_bundles);
 
-        SimpleScene::update(&self.base, &cb, &mut self.scenes);
+        let w = self.base.window.inner_size();
+        SimpleScene::update(&self.base, &cb, &mut self.scenes, w.width as f32 / w.height as f32);
 
 
         if let Some(new_frame) = self.video_device.poll() {
