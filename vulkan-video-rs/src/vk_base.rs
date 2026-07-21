@@ -849,6 +849,54 @@ impl VkBase {
         }
     }
 
+    fn create_descriptor_sets(
+        device: &DeviceBundle,
+        descriptor_pool: vk::DescriptorPool,
+        descriptor_set_layout: vk::DescriptorSetLayout,
+        textures: &[TextureBundle],
+        swapchain_images_size: usize,
+        dst_binding: u32,
+    ) -> Vec<vk::DescriptorSet> {
+        let mut layouts: Vec<vk::DescriptorSetLayout> = vec![];
+        for _ in 0..swapchain_images_size {
+            layouts.push(descriptor_set_layout);
+        }
+
+        let descriptor_set_allocate_info = vk::DescriptorSetAllocateInfo::default()
+            .descriptor_pool(descriptor_pool)
+            .set_layouts(&layouts);
+
+        let descriptor_sets = unsafe { device.logical.allocate_descriptor_sets(&descriptor_set_allocate_info).unwrap() };
+
+        for &descriptor_set in descriptor_sets.iter() {
+            let descriptor_image_infos: Vec<_> = textures.iter().map(|texture| {
+                vk::DescriptorImageInfo {
+                    sampler: texture.sampler,
+                    image_view: texture.image_view,
+                    image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                }
+            }).collect::<_>();
+
+            let descriptor_write_sets = [
+                vk::WriteDescriptorSet::default()
+                    .dst_set(descriptor_set)
+                    .dst_binding(dst_binding)
+                    .dst_array_element(0)
+                    .descriptor_count(1)
+                    .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                    .image_info(&descriptor_image_infos)
+            ];
+
+            unsafe {
+                device.logical.update_descriptor_sets(&descriptor_write_sets, &[]);
+            }
+        }
+
+        descriptor_sets
+
+    }
+
+
     /* Setup validation layer callbacks */
     pub fn setup_validation(entry: &ash::Entry, instance: &ash::Instance) -> (debug_utils::Instance, vk::DebugUtilsMessengerEXT) {
         let message_severity = vk::DebugUtilsMessageSeverityFlagsEXT::WARNING

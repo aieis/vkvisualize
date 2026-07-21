@@ -6,8 +6,8 @@ use crate::geometry::vec3::Vec3;
 use crate::mesh::prism;
 use crate::rhi::allocator::{Allocator, BufferType};
 use crate::vk_bundles::{BufferBundle, DeviceBundle};
-use crate::{drawable::drawable_mesh::DrawableMesh, mesh::cube, vk_base::VkBase};
-use crate::shader::{ShaderMesh, ShaderSpecialMesh};
+use crate::{drawable::drawable_mesh::DrawableMesh, vk_base::VkBase};
+use crate::shader::ShaderSpecialMesh;
 
 pub struct SimpleScene
 {
@@ -66,6 +66,7 @@ impl SimpleScene
             dynamic_meshes,
             staging,
             uniform,
+
             descriptor_sets,
             going_left: false,
             translation_amount: 0.0,
@@ -102,11 +103,11 @@ impl SimpleScene
             DrawableMesh::update(&base.device, &cb, &mut scene.static_meshes);
 
 
-            let mut et = [scene.time.elapsed().as_secs_f32(), aspect_ratio];
+            let et = [scene.time.elapsed().as_secs_f32(), aspect_ratio];
 
             unsafe {
                 let data_ptr = base.device.logical.map_memory(scene.staging.memory, scene.staging.offset, scene.staging.size, vk::MemoryMapFlags::empty()).unwrap() as *mut f32;
-                data_ptr.copy_from_nonoverlapping(et.as_mut_ptr(), scene.staging.size as usize);
+                data_ptr.copy_from_nonoverlapping(et.as_ptr(), scene.staging.size as usize);
                 base.device.logical.unmap_memory(scene.staging.memory);
 
                 let copy_region = [
@@ -131,16 +132,18 @@ impl SimpleScene
         }
 
         for scene in scenes {
+            let sets = &scene.descriptor_sets[current_image..current_image+1];
             unsafe {
-                base.device.logical.cmd_bind_descriptor_sets(
-                    *cb, vk::PipelineBindPoint::GRAPHICS, pso.layout, 0,
-                    &scene.descriptor_sets[current_image..current_image+1], &[]);
+                base.device.logical.cmd_bind_descriptor_sets(*cb, vk::PipelineBindPoint::GRAPHICS, pso.layout, 0, sets, &[]);
             }
+
+            println!("{}", sets.len());
 
             DrawableMesh::draw(&base.device, cb, pso, &scene.static_meshes);
             DrawableMesh::draw(&base.device, cb, pso, &scene.dynamic_meshes);
         }
     }
+
 
     fn create_descriptor_sets(
         device: &DeviceBundle,
@@ -150,8 +153,9 @@ impl SimpleScene
         swapchain_images_size: usize,
     ) -> Vec<vk::DescriptorSet> {
         let mut layouts: Vec<vk::DescriptorSetLayout> = vec![];
+
         for _ in 0..swapchain_images_size {
-            layouts.push(descriptor_set_layout);
+            layouts.push(descriptor_set_layout.clone());
         }
 
         let descriptor_set_allocate_info = vk::DescriptorSetAllocateInfo::default()

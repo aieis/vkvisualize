@@ -49,7 +49,7 @@ pub fn shaders_registry(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let generate_code = shape_names.iter().map(|shape_info| {
         let ident_token = Ident::new(&shape_info.name, Span::call_site());
         quote! {
-            (#ident_token::NAME, #ident_token::ID, #ident_token::pipeline_descriptor as fn() -> PipelineDescriptor),
+            (#ident_token::NAME, #ident_token::ID, #ident_token::pipeline_descriptor as fn() -> PipelineDescriptor, #ident_token::GLOBAL_UNIFORMS),
         }
     });
 
@@ -57,7 +57,7 @@ pub fn shaders_registry(_attr: TokenStream, item: TokenStream) -> TokenStream {
         #input_struct
 
         impl #ident_token {
-            pub const SHADER_DETAILS: [(&str, usize, fn() -> PipelineDescriptor); #num_shaders] = [ #(#generate_code)* ];
+            pub const SHADER_DETAILS: [(&str, usize, fn() -> PipelineDescriptor, bool); #num_shaders] = [ #(#generate_code)* ];
         }
     };
 

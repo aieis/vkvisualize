@@ -11,6 +11,8 @@ use crate::{geometry::vec3::Vec3, vk_bundles::{DescSetBinding, DeviceBundle, Pip
 pub struct ShaderMesh { }
 
 impl ShaderMesh  {
+    const GLOBAL_UNIFORMS: bool = false;
+
     pub fn pipeline_descriptor() -> PipelineDescriptor {
         let ubo_layout_bindings = vec![];
 
@@ -60,10 +62,12 @@ impl ShaderMesh  {
 #[register_shader("special_mesh")]
 pub struct ShaderSpecialMesh { }
 impl ShaderSpecialMesh  {
+    const GLOBAL_UNIFORMS: bool = false;
+
     pub fn pipeline_descriptor() -> PipelineDescriptor {
         let ubo_layout_bindings = vec![
             DescSetBinding {
-                binding: 0,
+                binding: 1,
                 descriptor_type: vk::DescriptorType::UNIFORM_BUFFER,
                 descriptor_count: 1,
                 stage_flags: vk::ShaderStageFlags::VERTEX,
@@ -117,6 +121,8 @@ impl ShaderSpecialMesh  {
 #[register_shader("triangle")]
 pub struct ShaderRect {}
 impl ShaderRect {
+    const GLOBAL_UNIFORMS: bool = false;
+
     pub fn pipeline_descriptor() -> PipelineDescriptor {
         let ubo_layout_bindings = vec![];
 
@@ -154,6 +160,8 @@ impl ShaderRect {
 pub struct ShaderTexture {}
 
 impl ShaderTexture {
+    const GLOBAL_UNIFORMS: bool = false;
+
     pub fn pipeline_descriptor() -> PipelineDescriptor {
         let ubo_layout_bindings = vec![
             DescSetBinding {
@@ -211,6 +219,8 @@ pub struct StaticShader {
     pub descriptor: PipelineDescriptor,
 
     pub id: usize,
+
+    pub global_uniforms: bool
 }
 
 pub struct CompiledShader {
@@ -470,6 +480,7 @@ impl CompiledShader {
                     frag_code,
                     descriptor: details.descriptor.clone(),
                     id: details.id,
+                    global_uniforms: details.global_uniforms
                 };
 
                 Ok( Self {
@@ -500,7 +511,7 @@ impl ShaderRegistry {
         };
 
         let static_shaders = ShaderRegistry::SHADER_DETAILS.map(|shader_info| {
-            ShaderRegistry::get_compiled_shader(device, &asset_dir, shader_info.0, shader_info.1, shader_info.2())
+            ShaderRegistry::get_compiled_shader(device, &asset_dir, shader_info.0, shader_info.1, shader_info.2(), shader_info.3)
         });
 
         Self {
@@ -508,7 +519,7 @@ impl ShaderRegistry {
         }
     }
 
-    pub fn get_compiled_shader(device: &DeviceBundle, asset_dir: &PathBuf, name: &str, id: usize, descriptor: PipelineDescriptor) -> CompiledShader {
+    pub fn get_compiled_shader(device: &DeviceBundle, asset_dir: &PathBuf, name: &str, id: usize, descriptor: PipelineDescriptor, global_uniforms: bool) -> CompiledShader {
 
         let name = name.to_string();
 
@@ -541,6 +552,7 @@ impl ShaderRegistry {
             frag_code: Vec::new(),
             descriptor,
             id,
+            global_uniforms
         };
 
         let compiled_shader = match CompiledShader::load_from_details(device, &details) {
@@ -557,7 +569,7 @@ impl ShaderRegistry {
         // created by the shader_registry proc_macro_attribute of the struct
         println!();
         println!("Shader Registry - {} Shaders Registered:", ShaderRegistry::SHADER_DETAILS.len());
-        for (name, id, _) in ShaderRegistry::SHADER_DETAILS {
+        for (name, id, _, _) in ShaderRegistry::SHADER_DETAILS {
             println!("\t Shader {} ({})", name, id);
         }
         println!();

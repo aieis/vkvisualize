@@ -10,17 +10,20 @@ mod utils;
 mod scene_extensions;
 mod geometry;
 mod rhi;
+mod scene;
 
 use std::time::{Duration, Instant};
 
 use devices::record_player::RecordPlayer;
 use drawable::{drawable_mesh::DrawableMesh, drawable_tex::DrawableTexture, drawable2d::Drawable2d};
+use geometry::vec3::Vec3;
 use mesh::{ Rect, cube};
 use primitives::texture2d::{PixelFormat, Texture2d};
+use scene::camera::{Camera, CameraParams};
 use scene_extensions::simple_scene::SimpleScene;
 use utils::image::{begin_single_time_command, end_single_time_command};
 use vk_bundles::*;
-use rhi::allocator::{Allocator, AllocatorSizeInfo};
+use rhi::allocator::{Allocator, AllocatorSizeInfo, BufferType};
 
 use ash::vk;
 
@@ -40,6 +43,13 @@ struct App {
     textures: Vec<DrawableTexture>,
     scenes: Vec<SimpleScene>,
     video_device: RecordPlayer,
+
+
+    camera_staging: BufferBundle,
+    camera_uniform: BufferBundle,
+
+    camera: Camera,
+
     close: bool,
 
     allocator: Allocator,
@@ -95,6 +105,10 @@ impl App {
 
         end_single_time_command(&base.device, base.spare_command.pool, base.device.present_queue, cb);
 
+        let camera_staging = allocator.alloc(BufferType::Staging, std::mem::size_of::<CameraParams>() as u64).unwrap();
+        let camera_uniform = allocator.alloc(BufferType::Uniform, std::mem::size_of::<CameraParams>() as u64).unwrap();
+        let camera = Camera::new(Vec3::new(0.0, 0.0, 10.0), Vec3::new(0.0, 0.0, -1.0));
+
 
         Self {
             video_device,
@@ -103,6 +117,9 @@ impl App {
             mesh_bundles,
             textures,
             scenes,
+            camera_staging,
+            camera_uniform,
+            camera,
             allocator,
             shader_poll_time: Instant::now() + SHADER_POLL_INTERVAL,
             close: false,
@@ -148,6 +165,22 @@ impl App {
         }
 
         DrawableTexture::update(&self.base.device, cb, &mut self.textures);
+
+        unsafe {
+            let data_ptr = self.base.device.logical.map_memory(self.camera_staging.memory, self.camera_staging.offset, self.camera_staging.size, vk::MemoryMapFlags::empty()).unwrap() as *mut CameraParams;
+            data_ptr.copy_from_nonoverlapping(&self.camera.params  as *const CameraParams, self.camera_staging.size as usize);
+            self.base.device.logical.unmap_memory(self.camera_staging.memory);
+
+            let copy_region = [
+                vk::BufferCopy::default()
+                    .src_offset(self.camera_staging.offset)
+                    .dst_offset(self.camera_uniform.offset)
+                    .size(self.camera_staging.size)
+            ];
+
+            self.base.device.logical.cmd_copy_buffer(cb, self.camera_staging.buffer, self.camera_uniform.buffer, &copy_region);
+        }
+        
 
         unsafe { self.base.device.logical.end_command_buffer(cb).unwrap(); }
 

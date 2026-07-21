@@ -2,6 +2,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 
 #include "utils/camera.glsl"
+#include "utils/common.glsl"
 
 layout(location = 0) out vec3 frag_color;
 
@@ -9,17 +10,14 @@ layout(location = 0) in vec3 pos;
 layout(location = 1) in vec3 col;
 layout(location = 2) in vec3 normals;
 
-layout(binding = 0) uniform Shared
+layout(binding = 1) uniform Shared
 {
     float Time;
     float Aspect;
 } S;
 
 
-bool show_norm = false;
-
 vec3 light = vec3(-1, 0, -1);
-
 
 #define TARGET_COL_COLOUR  0
 #define TARGET_COL_NORMAL  1
