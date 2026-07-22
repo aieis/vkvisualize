@@ -35,7 +35,8 @@ pub struct AllocatorSizeInfo {
 pub struct AllocatorHeap {
     pub heap   : BufferBundle,
     pub offset : u64,
-    pub size   : u64
+    pub size   : u64,
+    pub align  : u64
 }
 
 
@@ -59,7 +60,9 @@ impl Allocator {
             let required_memory_flags = vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
             let usage = vk::BufferUsageFlags::TRANSFER_SRC;
             let heap = buffer::create_buffer(&base.device, size, usage, required_memory_flags).expect("Failed to create buffer.");
-            AllocatorHeap { heap, offset, size }
+            let mem_requirements = unsafe { base.device.logical.get_buffer_memory_requirements(heap.buffer) };
+            let align = mem_requirements.alignment;
+            AllocatorHeap { heap, offset, size, align }
         };
 
         let device_vertex = {
@@ -67,7 +70,9 @@ impl Allocator {
             let required_memory_flags = vk::MemoryPropertyFlags::DEVICE_LOCAL;
             let usage = vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::VERTEX_BUFFER;
             let heap = buffer::create_buffer(&base.device, size, usage, required_memory_flags).expect("Failed to create buffer.");
-            AllocatorHeap { heap, offset, size }
+            let mem_requirements = unsafe { base.device.logical.get_buffer_memory_requirements(heap.buffer) };
+            let align = mem_requirements.alignment;
+            AllocatorHeap { heap, offset, size, align }
         };
 
 
@@ -76,7 +81,9 @@ impl Allocator {
             let required_memory_flags = vk::MemoryPropertyFlags::DEVICE_LOCAL;
             let usage = vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::INDEX_BUFFER;
             let heap = buffer::create_buffer(&base.device, size, usage, required_memory_flags).expect("Failed to create buffer.");
-            AllocatorHeap { heap, offset, size }
+            let mem_requirements = unsafe { base.device.logical.get_buffer_memory_requirements(heap.buffer) };
+            let align = mem_requirements.alignment;
+            AllocatorHeap { heap, offset, size, align }
         };
 
         let uniform_buffer = {
@@ -84,7 +91,9 @@ impl Allocator {
             let required_memory_flags = vk::MemoryPropertyFlags::DEVICE_LOCAL;
             let usage = vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::UNIFORM_BUFFER;
             let heap = buffer::create_buffer(&base.device, size, usage, required_memory_flags).expect("Failed to create buffer.");
-            AllocatorHeap { heap, offset, size }
+            let mem_requirements = unsafe { base.device.logical.get_buffer_memory_requirements(heap.buffer) };
+            let align = mem_requirements.alignment;
+            AllocatorHeap { heap, offset, size, align }
         };
 
 
@@ -116,7 +125,8 @@ impl Allocator {
             size
         };
 
-        heap.offset += size;
+        let incr = if heap.align > 0 { size.next_multiple_of(heap.align) } else { size };
+        heap.offset += incr;
 
         Ok(bundle)
     }
