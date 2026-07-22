@@ -47,7 +47,7 @@ struct App {
 
     camera_staging: BufferBundle,
     camera_uniform: BufferBundle,
-
+    global_descriptor_set: vk::DescriptorSet,
     camera: Camera,
 
     close: bool,
@@ -66,9 +66,16 @@ impl App {
 
         ShaderRegistry::describe_registed_shaders();
 
+        let global_descriptor_set_binding = DescSetBinding {
+            binding: 0,
+            descriptor_type: vk::DescriptorType::UNIFORM_BUFFER,
+            descriptor_count: 1,
+            stage_flags: vk::ShaderStageFlags::VERTEX,
+        };
+
 
         let video_device = RecordPlayer::from_buffer(include_bytes!("../assets/recordings/record1.rdbin")).unwrap();
-        let base = VkBase::new(window, 3, "./assets/shaders");
+        let base = VkBase::new(window, 3, "./assets/shaders", global_descriptor_set_binding);
         let mut allocator = Allocator::new(&base, AllocatorSizeInfo {
             staging: 10*1024*1024,
             device_vertex: 10*1024*1024,
@@ -109,6 +116,8 @@ impl App {
         let camera_uniform = allocator.alloc(BufferType::Uniform, std::mem::size_of::<CameraParams>() as u64).unwrap();
         let camera = Camera::new(Vec3::new(0.0, 0.0, 10.0), Vec3::new(0.0, 0.0, -1.0));
 
+        let global_descriptor_set = VkBase::create_buffer_descriptor_sets(&base.device, base.descriptor_pool, base.global_descriptor_set_layout, &[&camera_uniform], base.max_in_flight, 0)[0];
+
 
         Self {
             video_device,
@@ -119,6 +128,7 @@ impl App {
             scenes,
             camera_staging,
             camera_uniform,
+            global_descriptor_set,
             camera,
             allocator,
             shader_poll_time: Instant::now() + SHADER_POLL_INTERVAL,
@@ -205,19 +215,16 @@ impl App {
     fn render(&mut self)
     {
 
-        let cb_data = self.base.begin_renderpass_command_buffer();
-        if cb_data.is_none()
-        {
-            return;
-        }
-
-        let (cb, image_index) = cb_data.unwrap();
+        let (cb, image_index) = match self.base.begin_renderpass_command_buffer() {
+            Some((cb, image_index)) => (cb, image_index),
+            None => { return; }
+        };
 
         // DrawableTexture::draw(&self.base.device, cb, &self.base.graphics_pipelines[ShaderTexture::ID], self.base.current_frame, &self.textures);
         // Drawable2d::draw(&self.base.device, &cb, &self.base.graphics_pipelines[ShaderRect::ID], &self.rect_bundles);
         // DrawableMesh::draw(&self.base.device, &cb, &self.base.graphics_pipelines[ShaderMesh::ID], &self.mesh_bundles);
         let current_image = self.base.current_frame;
-        SimpleScene::draw(&mut self.base, &cb, &self.scenes, current_image);
+        SimpleScene::draw(&mut self.base, &cb, &self.scenes, current_image, self.global_descriptor_set);
         self.base.render(&cb, image_index);
     }
 
@@ -289,6 +296,7 @@ impl Drop for App {
                 self.base.device.logical.destroy_pipeline(self.base.graphics_pipelines[i].graphics, None);
                 self.base.device.logical.destroy_pipeline_layout(self.base.graphics_pipelines[i].layout, None);
             }
+
 
             self.allocator.release(&self.base.device);
         }

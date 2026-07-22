@@ -123,7 +123,7 @@ impl SimpleScene
 
     }
 
-    pub fn draw(base: &mut VkBase, cb: &vk::CommandBuffer, scenes: &[SimpleScene], current_image: usize) {
+    pub fn draw(base: &mut VkBase, cb: &vk::CommandBuffer, scenes: &[SimpleScene], current_image: usize, global_descriptor_set: vk::DescriptorSet) {
 
         let pso = &base.graphics_pipelines[ShaderSpecialMesh::ID];
 
@@ -131,13 +131,15 @@ impl SimpleScene
             base.device.logical.cmd_bind_pipeline(*cb, vk::PipelineBindPoint::GRAPHICS, pso.graphics);
         }
 
+        unsafe {
+            base.device.logical.cmd_bind_descriptor_sets(*cb, vk::PipelineBindPoint::GRAPHICS, pso.layout, 0, &[global_descriptor_set], &[]);
+        }        
+
         for scene in scenes {
             let sets = &scene.descriptor_sets[current_image..current_image+1];
             unsafe {
                 base.device.logical.cmd_bind_descriptor_sets(*cb, vk::PipelineBindPoint::GRAPHICS, pso.layout, 0, sets, &[]);
             }
-
-            println!("{}", sets.len());
 
             DrawableMesh::draw(&base.device, cb, pso, &scene.static_meshes);
             DrawableMesh::draw(&base.device, cb, pso, &scene.dynamic_meshes);
@@ -174,7 +176,7 @@ impl SimpleScene
             let descriptor_write_sets = [
                 vk::WriteDescriptorSet::default()
                     .dst_set(descriptor_set)
-                    .dst_binding(0)
+                    .dst_binding(1)
                     .dst_array_element(0)
                     .descriptor_count(1)
                     .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)

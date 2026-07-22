@@ -31,13 +31,14 @@ pub struct VkBase {
     pub window: Window,
     pub max_in_flight: usize,
 
+    pub global_descriptor_set_layout: vk::DescriptorSetLayout,
     pub shader_registry: ShaderRegistry,
     pub graphics_pipelines: Vec<GraphicsPipelineBundle>,
 
 }
 
 impl VkBase {
-    pub fn new(window: Window, max_in_flight: usize, asset_dir: &str) -> Self {
+    pub fn new(window: Window, max_in_flight: usize, asset_dir: &str, global_desc_set_binding: DescSetBinding) -> Self {
         let (entry, instance) = VkBase::create_instance(&window);
         let (debug_utils_loader, debug_messenger) = VkBase::setup_validation(&entry, &instance);
 
@@ -54,10 +55,12 @@ impl VkBase {
 
         let descriptor_pool = VkBase::create_descriptor_pool(&device, swapchain.images.len());
 
+        let global_descriptor_set_layout = VkBase::create_descriptor_set_layout(&device, &[global_desc_set_binding]);
+
         let shader_registry = ShaderRegistry::new(&device, asset_dir);
 
         let graphics_pipelines: Vec<_> = (0..shader_registry.static_shaders.len()).map(|i| {
-            VkBase::create_graphics_pipeline_impl(&device, &swapchain, &render_pass, &shader_registry, i, None)
+            VkBase::create_graphics_pipeline_impl(&device, &swapchain, &render_pass, global_descriptor_set_layout, &shader_registry, i, None)
         }).collect();
 
         Self {
@@ -87,6 +90,7 @@ impl VkBase {
             window,
             max_in_flight,
 
+            global_descriptor_set_layout,
             shader_registry,
             graphics_pipelines
         }
@@ -229,7 +233,7 @@ impl VkBase {
     }
 
     pub fn recreate_graphics_pipeline(&mut self, graphics_pipeline: GraphicsPipelineBundle) -> GraphicsPipelineBundle {
-        return VkBase::create_graphics_pipeline_impl(&self.device, &self.swapchain, &self.render_pass, &self.shader_registry, graphics_pipeline.id, graphics_pipeline.ubo);
+        return VkBase::create_graphics_pipeline_impl(&self.device, &self.swapchain, &self.render_pass, self.global_descriptor_set_layout, &self.shader_registry, graphics_pipeline.id, graphics_pipeline.ubo);
     }
 
     pub fn recreate_swapchain(&mut self) {
@@ -317,7 +321,7 @@ impl VkBase {
                 let pso = self.graphics_pipelines.remove(i);
 
                 let new_pso = VkBase::create_graphics_pipeline_impl(
-                    &self.device, &self.swapchain, &self.render_pass, &self.shader_registry,
+                    &self.device, &self.swapchain, &self.render_pass, self.global_descriptor_set_layout, &self.shader_registry,
                     pso.id,
                     pso.ubo
                 );
@@ -557,12 +561,14 @@ impl VkBase {
     }
 
     /* Setup the graphics pipeline */
-    pub fn create_graphics_pipeline_impl(device: &DeviceBundle, swapchain: &SwapchainBundle, renderpass: &vk::RenderPass, shader_registry: &ShaderRegistry, shader_id: usize, ubo: Option<Vec<vk::DescriptorSetLayout>>) -> GraphicsPipelineBundle {
+    pub fn create_graphics_pipeline_impl(device: &DeviceBundle, swapchain: &SwapchainBundle, renderpass: &vk::RenderPass, global_descriptor_set_layout: vk::DescriptorSetLayout, shader_registry: &ShaderRegistry, shader_id: usize, ubo: Option<Vec<vk::DescriptorSetLayout>>) -> GraphicsPipelineBundle {
 
         let pipeline_desc = &shader_registry.static_shaders[shader_id].details.descriptor;
+        let use_global    =  shader_registry.static_shaders[shader_id].details.global_uniforms;
 
         let ubo = if ubo.is_some() || pipeline_desc.ubo_layout_bindings.len() == 0 { ubo } else {
-            Some(vec![Self::create_descriptor_set_layout(device, &pipeline_desc.ubo_layout_bindings)])
+            let local = Self::create_descriptor_set_layout(device, &pipeline_desc.ubo_layout_bindings);
+            if use_global { Some(vec![global_descriptor_set_layout, local]) } else { Some(vec![local]) }
         };
 
 
@@ -814,12 +820,12 @@ impl VkBase {
     /* Create descriptor sets */
     fn create_descriptor_pool(device: &DeviceBundle, swapchain_images_size: usize) -> vk::DescriptorPool {
         let pool_sizes = [
-            vk::DescriptorPoolSize { descriptor_count: swapchain_images_size as u32, ty: vk::DescriptorType::COMBINED_IMAGE_SAMPLER },
-            vk::DescriptorPoolSize { descriptor_count: swapchain_images_size as u32, ty: vk::DescriptorType::UNIFORM_BUFFER },
+            vk::DescriptorPoolSize { descriptor_count: swapchain_images_size as u32 * 2, ty: vk::DescriptorType::COMBINED_IMAGE_SAMPLER },
+            vk::DescriptorPoolSize { descriptor_count: swapchain_images_size as u32 * 2, ty: vk::DescriptorType::UNIFORM_BUFFER },
         ];
         let descriptor_pool_create_info = vk::DescriptorPoolCreateInfo::default()
             .flags(vk::DescriptorPoolCreateFlags::empty())
-            .max_sets(swapchain_images_size as u32 * pool_sizes.len() as u32)
+            .max_sets(swapchain_images_size as u32 * pool_sizes.len() as u32 * 2)
             .pool_sizes(&pool_sizes);
 
         unsafe {
@@ -849,7 +855,7 @@ impl VkBase {
         }
     }
 
-    fn create_descriptor_sets(
+    pub fn create_texture_descriptor_sets(
         device: &DeviceBundle,
         descriptor_pool: vk::DescriptorPool,
         descriptor_set_layout: vk::DescriptorSetLayout,
@@ -893,9 +899,53 @@ impl VkBase {
         }
 
         descriptor_sets
-
     }
 
+    pub fn create_buffer_descriptor_sets(
+        device: &DeviceBundle,
+        descriptor_pool: vk::DescriptorPool,
+        descriptor_set_layout: vk::DescriptorSetLayout,
+        buffers: &[&BufferBundle],
+        swapchain_images_size: usize,
+        dst_binding: u32,
+    ) -> Vec<vk::DescriptorSet> {
+        let mut layouts: Vec<vk::DescriptorSetLayout> = vec![];
+        for _ in 0..swapchain_images_size {
+            layouts.push(descriptor_set_layout);
+        }
+
+        let descriptor_set_allocate_info = vk::DescriptorSetAllocateInfo::default()
+            .descriptor_pool(descriptor_pool)
+            .set_layouts(&layouts);
+
+        let descriptor_sets = unsafe { device.logical.allocate_descriptor_sets(&descriptor_set_allocate_info).unwrap() };
+
+        for &descriptor_set in descriptor_sets.iter() {
+            let descriptor_buffer_infos: Vec<_> = buffers.iter().map(|buffer| {
+                vk::DescriptorBufferInfo {
+                    buffer: buffer.buffer,
+                    offset: buffer.offset,
+                    range: buffer.size,
+                }
+            }).collect::<_>();
+
+            let descriptor_write_sets = [
+                vk::WriteDescriptorSet::default()
+                    .dst_set(descriptor_set)
+                    .dst_binding(dst_binding)
+                    .dst_array_element(0)
+                    .descriptor_count(1)
+                    .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+                    .buffer_info(&descriptor_buffer_infos)
+            ];
+
+            unsafe {
+                device.logical.update_descriptor_sets(&descriptor_write_sets, &[]);
+            }
+        }
+
+        descriptor_sets
+    }    
 
     /* Setup validation layer callbacks */
     pub fn setup_validation(entry: &ash::Entry, instance: &ash::Instance) -> (debug_utils::Instance, vk::DebugUtilsMessengerEXT) {
@@ -947,6 +997,8 @@ impl Drop for VkBase {
             }
 
             self.cleanup_swapchain();
+
+            self.device.logical.destroy_descriptor_set_layout(self.global_descriptor_set_layout, None);
 
             for command in self.commands.iter() {
                 self.device.logical.free_command_buffers(command.pool, &command.buffers);
