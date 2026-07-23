@@ -1,6 +1,7 @@
 use std::time::Instant;
 
 use ash::vk;
+use winit::keyboard::KeyCode;
 
 use crate::geometry::vec3::Vec3;
 use crate::mesh::prism;
@@ -9,6 +10,13 @@ use crate::vk_bundles::{BufferBundle, DeviceBundle};
 use crate::{drawable::drawable_mesh::DrawableMesh, vk_base::VkBase};
 use crate::shader::ShaderSpecialMesh;
 
+#[repr(C)]
+struct SpecialMeshShaderParams {
+    time: f32,
+    aspect: f32,
+    global_camera: f32
+}
+
 pub struct SimpleScene
 {
     pub time            : Instant,
@@ -16,11 +24,13 @@ pub struct SimpleScene
     pub static_meshes  : Vec<DrawableMesh>,
     pub dynamic_meshes : Vec<DrawableMesh>,
 
+    pub descriptor_sets: Vec<vk::DescriptorSet>,
 
     staging: BufferBundle,
     uniform: BufferBundle,
-    descriptor_sets: Vec<vk::DescriptorSet>,
-    going_left: bool,
+
+    use_global_camera: bool,
+    going_down: bool,
     translation_amount: f32,
 }
 
@@ -52,10 +62,13 @@ impl SimpleScene
             DrawableMesh::new(&base.device, cube_e),
         ];
 
-        let staging = allocator.alloc(BufferType::Staging, std::mem::size_of::<f32>() as u64 * 2).unwrap();
-        let uniform = allocator.alloc(BufferType::Uniform, std::mem::size_of::<f32>() as u64 * 2).unwrap();
+        let staging = allocator.alloc(BufferType::Staging, std::mem::size_of::<SpecialMeshShaderParams>() as u64).unwrap();
+        let uniform = allocator.alloc(BufferType::Uniform, std::mem::size_of::<SpecialMeshShaderParams>() as u64).unwrap();
 
-        let descriptor_sets = Self::create_descriptor_sets(&base.device, base.descriptor_pool, base.graphics_pipelines[ShaderSpecialMesh::ID].ubo.as_ref().unwrap()[0], &uniform, base.max_in_flight);
+        let descriptor_sets = VkBase::create_descriptor_sets(&base.device, base.descriptor_pool, base.graphics_pipelines[ShaderSpecialMesh::ID].ubo.as_ref().unwrap()[1], base.max_in_flight);
+        for descriptor_set in descriptor_sets.iter() {
+            VkBase::update_descriptor_set_buffers(&base.device, *descriptor_set, &[&uniform], 0);
+        }
 
         let time = Instant::now();
 
@@ -68,19 +81,38 @@ impl SimpleScene
             uniform,
 
             descriptor_sets,
-            going_left: false,
+            use_global_camera: false,
+            going_down: false,
             translation_amount: 0.0,
         }
     }
 
-    pub fn update(base: &VkBase, cb: &vk::CommandBuffer, scenes: &mut [SimpleScene], aspect_ratio: f32) {
+    pub fn handle_key(scenes: &mut [SimpleScene], key: KeyCode) {
+
+        match key {
+
+            KeyCode::KeyO => {
+                for scene in scenes.iter_mut() {
+                    scene.use_global_camera = !scene.use_global_camera;
+                }
+            }
+
+            _ => {
+
+            }
+
+        }
+
+    }
+
+    pub fn update(scenes: &mut [SimpleScene], base: &VkBase, cb: &vk::CommandBuffer, aspect_ratio: f32) {
         for scene in scenes.iter_mut() {
 
             let mut v = 1e-2;
 
             const TRANSLATION_MAX: f32 = 1.0;
             if scene.translation_amount >= TRANSLATION_MAX {
-                scene.going_left = !scene.going_left;
+                scene.going_down = !scene.going_down;
                 scene.translation_amount = 0.0;
             } else {
                 scene.translation_amount += v;
@@ -89,7 +121,7 @@ impl SimpleScene
 
             let d = Vec3::Y * 0.5;
 
-            let v = if scene.going_left { d * -v } else { d * v };
+            let v = if scene.going_down { d * -v } else { d * v };
 
             for mesh in scene.dynamic_meshes.iter_mut() {
                 mesh.mesh.translate(v);
@@ -103,11 +135,15 @@ impl SimpleScene
             DrawableMesh::update(&base.device, &cb, &mut scene.static_meshes);
 
 
-            let et = [scene.time.elapsed().as_secs_f32(), aspect_ratio];
+            let params = SpecialMeshShaderParams {
+                time: scene.time.elapsed().as_secs_f32(),
+                aspect: aspect_ratio,
+                global_camera: if scene.use_global_camera { 1.0 } else { -1.0 },
+            };
 
             unsafe {
-                let data_ptr = base.device.logical.map_memory(scene.staging.memory, scene.staging.offset, scene.staging.size, vk::MemoryMapFlags::empty()).unwrap() as *mut f32;
-                data_ptr.copy_from_nonoverlapping(et.as_ptr(), scene.staging.size as usize);
+                let data_ptr = base.device.logical.map_memory(scene.staging.memory, scene.staging.offset, scene.staging.size, vk::MemoryMapFlags::empty()).unwrap() as *mut SpecialMeshShaderParams;
+                data_ptr.copy_from_nonoverlapping(&params as *const SpecialMeshShaderParams, scene.staging.size as usize);
                 base.device.logical.unmap_memory(scene.staging.memory);
 
                 let copy_region = [
@@ -123,7 +159,7 @@ impl SimpleScene
 
     }
 
-    pub fn draw(base: &mut VkBase, cb: &vk::CommandBuffer, scenes: &[SimpleScene], current_image: usize, global_descriptor_set: vk::DescriptorSet) {
+    pub fn draw(scenes: &[SimpleScene], base: &mut VkBase, cb: &vk::CommandBuffer, current_image: usize, global_descriptor_set: vk::DescriptorSet) {
 
         let pso = &base.graphics_pipelines[ShaderSpecialMesh::ID];
 
@@ -133,12 +169,12 @@ impl SimpleScene
 
         unsafe {
             base.device.logical.cmd_bind_descriptor_sets(*cb, vk::PipelineBindPoint::GRAPHICS, pso.layout, 0, &[global_descriptor_set], &[]);
-        }        
+        }
 
         for scene in scenes {
             let sets = &scene.descriptor_sets[current_image..current_image+1];
             unsafe {
-                base.device.logical.cmd_bind_descriptor_sets(*cb, vk::PipelineBindPoint::GRAPHICS, pso.layout, 0, sets, &[]);
+                base.device.logical.cmd_bind_descriptor_sets(*cb, vk::PipelineBindPoint::GRAPHICS, pso.layout, 1, sets, &[]);
             }
 
             DrawableMesh::draw(&base.device, cb, pso, &scene.static_meshes);
@@ -146,54 +182,7 @@ impl SimpleScene
         }
     }
 
-
-    fn create_descriptor_sets(
-        device: &DeviceBundle,
-        descriptor_pool: vk::DescriptorPool,
-        descriptor_set_layout: vk::DescriptorSetLayout,
-        buffer: &BufferBundle,
-        swapchain_images_size: usize,
-    ) -> Vec<vk::DescriptorSet> {
-        let mut layouts: Vec<vk::DescriptorSetLayout> = vec![];
-
-        for _ in 0..swapchain_images_size {
-            layouts.push(descriptor_set_layout.clone());
-        }
-
-        let descriptor_set_allocate_info = vk::DescriptorSetAllocateInfo::default()
-            .descriptor_pool(descriptor_pool)
-            .set_layouts(&layouts);
-
-        let descriptor_sets = unsafe { device.logical.allocate_descriptor_sets(&descriptor_set_allocate_info).unwrap() };
-
-        for &descriptor_set in descriptor_sets.iter() {
-            let descriptor_image_infos = [vk::DescriptorBufferInfo {
-                buffer: buffer.buffer,
-                offset: buffer.offset,
-                range: buffer.size,
-            }];
-
-            let descriptor_write_sets = [
-                vk::WriteDescriptorSet::default()
-                    .dst_set(descriptor_set)
-                    .dst_binding(1)
-                    .dst_array_element(0)
-                    .descriptor_count(1)
-                    .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                    .buffer_info(&descriptor_image_infos)
-            ];
-
-            unsafe {
-                device.logical.update_descriptor_sets(&descriptor_write_sets, &[]);
-            }
-        }
-
-        descriptor_sets
-
-    }
-
-
-    pub fn release(base: &VkBase, scenes: &mut [Self]) {
+    pub fn release(scenes: &mut [Self], base: &VkBase) {
         for scene in scenes.iter_mut() {
             DrawableMesh::release(&base.device, &mut scene.dynamic_meshes);
             scene.dynamic_meshes.clear();

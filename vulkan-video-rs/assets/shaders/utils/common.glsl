@@ -1,4 +1,4 @@
-layout(binding = 0) uniform GlobalParameters
+layout(set = 0, binding = 0) uniform GlobalParameters
 {
     vec3 CamPos;
     vec3 CamDir;

@@ -62,12 +62,12 @@ impl ShaderMesh  {
 #[register_shader("special_mesh")]
 pub struct ShaderSpecialMesh { }
 impl ShaderSpecialMesh  {
-    const GLOBAL_UNIFORMS: bool = false;
+    const GLOBAL_UNIFORMS: bool = true;
 
     pub fn pipeline_descriptor() -> PipelineDescriptor {
         let ubo_layout_bindings = vec![
             DescSetBinding {
-                binding: 1,
+                binding: 0,
                 descriptor_type: vk::DescriptorType::UNIFORM_BUFFER,
                 descriptor_count: 1,
                 stage_flags: vk::ShaderStageFlags::VERTEX,

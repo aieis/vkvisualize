@@ -36,7 +36,8 @@ pub struct AllocatorHeap {
     pub heap   : BufferBundle,
     pub offset : u64,
     pub size   : u64,
-    pub align  : u64
+    pub align  : u64,
+    pub waste  : u64
 }
 
 
@@ -62,7 +63,7 @@ impl Allocator {
             let heap = buffer::create_buffer(&base.device, size, usage, required_memory_flags).expect("Failed to create buffer.");
             let mem_requirements = unsafe { base.device.logical.get_buffer_memory_requirements(heap.buffer) };
             let align = mem_requirements.alignment;
-            AllocatorHeap { heap, offset, size, align }
+            AllocatorHeap { heap, offset, size, align, waste: 0 }
         };
 
         let device_vertex = {
@@ -72,7 +73,7 @@ impl Allocator {
             let heap = buffer::create_buffer(&base.device, size, usage, required_memory_flags).expect("Failed to create buffer.");
             let mem_requirements = unsafe { base.device.logical.get_buffer_memory_requirements(heap.buffer) };
             let align = mem_requirements.alignment;
-            AllocatorHeap { heap, offset, size, align }
+            AllocatorHeap { heap, offset, size, align, waste: 0 }
         };
 
 
@@ -83,7 +84,7 @@ impl Allocator {
             let heap = buffer::create_buffer(&base.device, size, usage, required_memory_flags).expect("Failed to create buffer.");
             let mem_requirements = unsafe { base.device.logical.get_buffer_memory_requirements(heap.buffer) };
             let align = mem_requirements.alignment;
-            AllocatorHeap { heap, offset, size, align }
+            AllocatorHeap { heap, offset, size, align, waste: 0 }
         };
 
         let uniform_buffer = {
@@ -93,7 +94,7 @@ impl Allocator {
             let heap = buffer::create_buffer(&base.device, size, usage, required_memory_flags).expect("Failed to create buffer.");
             let mem_requirements = unsafe { base.device.logical.get_buffer_memory_requirements(heap.buffer) };
             let align = mem_requirements.alignment;
-            AllocatorHeap { heap, offset, size, align }
+            AllocatorHeap { heap, offset, size, align, waste: 0 }
         };
 
 
@@ -126,29 +127,50 @@ impl Allocator {
         };
 
         let incr = if heap.align > 0 { size.next_multiple_of(heap.align) } else { size };
+
+        if incr != size {
+            heap.waste += incr - size;
+        }
+
         heap.offset += incr;
 
         Ok(bundle)
     }
 
 
+    pub fn print_heap_stats(heap: &AllocatorHeap, name: &str) {
+
+        println!("Heap '{}' stats: ", name);
+        println!("\t Size: {}", heap.size);
+        println!("\t Align: {}", heap.align);
+        println!("\t Offset: {}", heap.offset);
+        println!("\t Waste: {}", heap.waste);
+        println!("\t Remaining: {}", heap.size - heap.offset);
+
+    }
+
+
     pub fn release(&mut self, device: &DeviceBundle) {
         unsafe {
+            Self::print_heap_stats(&self.staging, "Staging");
             device.logical.destroy_buffer(self.staging.heap.buffer, None);
             device.logical.free_memory(self.staging.heap.memory, None);
             self.staging.offset = 0;
             self.staging.size = 0;
 
+            Self::print_heap_stats(&self.device_vertex, "Vertex");
             device.logical.destroy_buffer(self.device_vertex.heap.buffer, None);
             device.logical.free_memory(self.device_vertex.heap.memory, None);
             self.device_vertex.offset = 0;
             self.device_vertex.size = 0;
 
+            Self::print_heap_stats(&self.device_index, "Index");
             device.logical.destroy_buffer(self.device_index.heap.buffer, None);
             device.logical.free_memory(self.device_index.heap.memory, None);
             self.device_index.offset = 0;
             self.device_index.size = 0;
 
+            Self::print_heap_stats(&self.uniform_buffer, "Uniform_Buffer");
             device.logical.destroy_buffer(self.uniform_buffer.heap.buffer, None);
             device.logical.free_memory(self.uniform_buffer.heap.memory, None);
             self.uniform_buffer.offset = 0;

@@ -10,10 +10,11 @@ layout(location = 0) in vec3 pos;
 layout(location = 1) in vec3 col;
 layout(location = 2) in vec3 normals;
 
-layout(binding = 1) uniform Shared
+layout(set = 1, binding = 0) uniform Shared
 {
     float Time;
     float Aspect;
+    float GlobalCamera;
 } S;
 
 
@@ -33,51 +34,25 @@ void main() {
 
     float time   = S.Time;
     float period = radians(180) / 10;
-
-    float period_s = 10;
-    float theta = sin(time / period_s * PI / 2 - PI / 4) * PI / 4;
-    float theta_else = 0; //cos(time / period_s * PI / 2 - PI / 4) * PI / 4;
-    float FOV   = PI / 4;
-
     float ST = sin(time*period/2);
     float CT = cos(time*period/2);
 
     float STO = 1 - ST*ST;
-
     vec3  camera_pos = vec3(0, 0, 7);
     vec3  camera_dir = normalize(vec3(ST, 0, CT));
+    vec3  camera_up  = vec3(0, 1, 0);
 
-    vec3 rel_pos  = pos - camera_pos;
+    if (S.GlobalCamera > 0) {
+        camera_pos = G.CamPos;
+        camera_dir = G.CamDir;
+        camera_up  = G.CamUp;
+    }
 
-    // theta is the rotation around the y axis
+    float FOV   = PI / 4;
 
-    float SIN_Y = sin(theta);
-    float COS_Y = cos(theta);
+    mat4 view = create_view_matrix(camera_pos, camera_dir, camera_up);
 
-    mat3  view_x = mat3 ( COS_Y, 0, -SIN_Y,
-                          0    , 1,  0,
-                          SIN_Y, 0,  COS_Y);
-
-
-    vec3 rot_pos  = view_x * rel_pos;
-
-
-    float SIN_X = sin(theta_else);
-    float COS_X = cos(theta_else);
-
-    mat3  view_y = mat3 (1,      0,  0,
-                         0,  COS_X,  SIN_X,
-                         0, -SIN_X,  COS_X);
-
-    view_y = transpose(view_y);
-    rot_pos = view_y * rot_pos;
-    rot_pos.y *= -1;
-
-
-    vec4 world_pos = vec4(rot_pos, 1.0);
-
-    mat4 view = create_view_matrix(camera_pos, camera_dir, vec3(0, 1, 0));
-    world_pos = view * vec4(pos, 1.0);
+    vec4 world_pos = view * vec4(pos, 1.0);
     world_pos.z *= -1;
 
 
@@ -94,7 +69,7 @@ void main() {
         frag_color = 0.2 * vec3(col.x, col.y, col.z) * ( 1 - dark_factor);
 
     } else if (TARGET == TARGET_COL_DEPTH) {
-        float dz_col = (rot_pos.z - camera_pos.z - 1) / 8.0;
+        float dz_col = (world_pos.z - camera_pos.z - 1) / 8.0;
         frag_color = vec3(dz_col, dz_col, dz_col);
 
     } else {

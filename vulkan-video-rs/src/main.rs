@@ -19,7 +19,7 @@ use drawable::{drawable_mesh::DrawableMesh, drawable_tex::DrawableTexture, drawa
 use geometry::vec3::Vec3;
 use mesh::{ Rect, cube};
 use primitives::texture2d::{PixelFormat, Texture2d};
-use scene::camera::{Camera, CameraParams};
+use scene::camera::{Camera, CameraParams, CameraAction};
 use scene_extensions::simple_scene::SimpleScene;
 use utils::image::{begin_single_time_command, end_single_time_command};
 use vk_bundles::*;
@@ -32,7 +32,7 @@ use vk_base::VkBase;
 use winit::{
     event::{Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
-    keyboard::KeyCode,
+    keyboard::{PhysicalKey, KeyCode},
     window::{Window, WindowBuilder},
 };
 
@@ -47,10 +47,15 @@ struct App {
 
     camera_staging: BufferBundle,
     camera_uniform: BufferBundle,
-    global_descriptor_set: vk::DescriptorSet,
     camera: Camera,
 
+    global_descriptor_set: Vec<vk::DescriptorSet>,
     close: bool,
+
+
+    current_time: Instant,
+    delta_time: f32,
+    speed:      f32,
 
     allocator: Allocator,
     shader_poll_time: Instant
@@ -77,10 +82,10 @@ impl App {
         let video_device = RecordPlayer::from_buffer(include_bytes!("../assets/recordings/record1.rdbin")).unwrap();
         let base = VkBase::new(window, 3, "./assets/shaders", global_descriptor_set_binding);
         let mut allocator = Allocator::new(&base, AllocatorSizeInfo {
-            staging: 10*1024*1024,
-            device_vertex: 10*1024*1024,
-            device_index: 10*1024*1024,
-            uniform_buffer: 10*1024*1024,
+            staging: 10*1024,
+            device_vertex: 10*1024,
+            device_index: 10*1024,
+            uniform_buffer: 10*1024,
         });
 
 
@@ -116,7 +121,16 @@ impl App {
         let camera_uniform = allocator.alloc(BufferType::Uniform, std::mem::size_of::<CameraParams>() as u64).unwrap();
         let camera = Camera::new(Vec3::new(0.0, 0.0, 10.0), Vec3::new(0.0, 0.0, -1.0));
 
-        let global_descriptor_set = VkBase::create_buffer_descriptor_sets(&base.device, base.descriptor_pool, base.global_descriptor_set_layout, &[&camera_uniform], base.max_in_flight, 0)[0];
+        let global_descriptor_set = VkBase::create_descriptor_sets(&base.device, base.descriptor_pool, base.global_descriptor_set_layout, base.max_in_flight);
+
+        // TODO: FIX THE DESC SET BINDING JANK
+        for descriptor_set in global_descriptor_set.iter() {
+            VkBase::update_descriptor_set_buffers(&base.device, *descriptor_set, &[&camera_uniform], 0);
+        }
+
+        let current_time = Instant::now();
+        let delta_time   = 16.0e-3;
+        let speed        = 1.0;
 
 
         Self {
@@ -128,9 +142,15 @@ impl App {
             scenes,
             camera_staging,
             camera_uniform,
-            global_descriptor_set,
             camera,
             allocator,
+
+            global_descriptor_set,
+
+            current_time,
+            delta_time,
+            speed,
+
             shader_poll_time: Instant::now() + SHADER_POLL_INTERVAL,
             close: false,
         }
@@ -139,6 +159,8 @@ impl App {
     fn update(&mut self) {
 
         let ct = Instant::now();
+        let delta_time_dur = ct - self.current_time;
+        self.delta_time = delta_time_dur.as_secs_f32();
 
         for mesh_bundle in self.rect_bundles.iter_mut() {
             mesh_bundle.mesh.transform(0.001, [0.0, 0.0]);
@@ -167,7 +189,7 @@ impl App {
         DrawableMesh::update(&self.base.device, &cb, &mut self.mesh_bundles);
 
         let w = self.base.window.inner_size();
-        SimpleScene::update(&self.base, &cb, &mut self.scenes, w.width as f32 / w.height as f32);
+        SimpleScene::update(&mut self.scenes, &self.base, &cb, w.width as f32 / w.height as f32);
 
 
         if let Some(new_frame) = self.video_device.poll() {
@@ -190,7 +212,7 @@ impl App {
 
             self.base.device.logical.cmd_copy_buffer(cb, self.camera_staging.buffer, self.camera_uniform.buffer, &copy_region);
         }
-        
+
 
         unsafe { self.base.device.logical.end_command_buffer(cb).unwrap(); }
 
@@ -224,7 +246,7 @@ impl App {
         // Drawable2d::draw(&self.base.device, &cb, &self.base.graphics_pipelines[ShaderRect::ID], &self.rect_bundles);
         // DrawableMesh::draw(&self.base.device, &cb, &self.base.graphics_pipelines[ShaderMesh::ID], &self.mesh_bundles);
         let current_image = self.base.current_frame;
-        SimpleScene::draw(&mut self.base, &cb, &self.scenes, current_image, self.global_descriptor_set);
+        SimpleScene::draw(&self.scenes, &mut self.base, &cb, current_image, self.global_descriptor_set[current_image]);
         self.base.render(&cb, image_index);
     }
 
@@ -256,11 +278,41 @@ impl App {
 
     fn handle_key(&mut self, event: KeyEvent) {
         match event.physical_key {
-            winit::keyboard::PhysicalKey::Code(KeyCode::KeyQ) => {
-                self.close = true;
-            }
-            winit::keyboard::PhysicalKey::Code(KeyCode::Escape) => {
-                self.close = true;
+            PhysicalKey::Code(a) => {
+                match a {
+                    KeyCode::Escape => {
+                        self.close = true;
+                    },
+
+                    KeyCode::KeyA => {
+                        self.camera.update(CameraAction::Left, self.delta_time * self.speed);
+                    }
+
+                    KeyCode::KeyD => {
+                        self.camera.update(CameraAction::Right, self.delta_time * self.speed);
+                    }
+
+                    KeyCode::KeyW => {
+                        self.camera.update(CameraAction::Forward, self.delta_time * self.speed);
+                    }
+
+                    KeyCode::KeyS => {
+                        self.camera.update(CameraAction::Backward, self.delta_time * self.speed);
+                    }
+
+                    KeyCode::KeyE => {
+                        self.camera.update(CameraAction::Up, self.delta_time * self.speed);
+                    }
+
+                    KeyCode::KeyQ => {
+                        self.camera.update(CameraAction::Down, self.delta_time * self.speed);
+                    }
+
+                    _ => {
+
+
+                    }
+                }
             }
             _ => {}
         }
@@ -283,7 +335,7 @@ impl Drop for App {
             DrawableTexture::release(&self.base.device, &mut self.textures);
             self.textures.clear();
 
-            SimpleScene::release(&self.base, &mut self.scenes);
+            SimpleScene::release(&mut self.scenes, &self.base);
             self.scenes.clear();
 
             for i in 0..self.base.graphics_pipelines.len() {
