@@ -1,6 +1,7 @@
 use std::time::Instant;
 
 use ash::vk;
+use winit::event::ElementState;
 use winit::keyboard::KeyCode;
 
 use crate::geometry::vec3::Vec3;
@@ -87,7 +88,11 @@ impl SimpleScene
         }
     }
 
-    pub fn handle_key(scenes: &mut [SimpleScene], key: KeyCode) {
+    pub fn handle_key(scenes: &mut [SimpleScene], key: KeyCode, state: ElementState, _repeat: bool) {
+
+        if state != ElementState::Pressed {
+            return;
+        }
 
         match key {
 

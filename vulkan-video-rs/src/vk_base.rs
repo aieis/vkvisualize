@@ -1023,6 +1023,21 @@ impl Drop for VkBase {
             let _ = self.device.logical.device_wait_idle();
             self.cleanup_in_flight_buffers();
 
+            for i in 0..self.graphics_pipelines.len() {
+                let shader_id = self.graphics_pipelines[i].id;
+                if let Some(ubo) = self.graphics_pipelines[i].ubo.as_ref() {
+                    // The first ubo will always be the global uniform if it has been requested
+                    let idx = if self.shader_registry.static_shaders[shader_id].details.global_uniforms { 1 } else { 0 };
+                    for ubo_elem in ubo[idx..].iter() {
+                        self.device.logical.destroy_descriptor_set_layout(*ubo_elem, None)
+                    }
+                }
+
+                self.device.logical.destroy_pipeline(self.graphics_pipelines[i].graphics, None);
+                self.device.logical.destroy_pipeline_layout(self.graphics_pipelines[i].layout, None);
+            }
+
+
             for i in 0..self.sync_objects.image_available_semaphores.len() {
                 self.device.logical.destroy_semaphore(self.sync_objects.image_available_semaphores[i], None);
                 self.device.logical.destroy_semaphore(self.sync_objects.render_finished_semaphores[i], None);

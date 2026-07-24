@@ -21,7 +21,7 @@ use mesh::{ Rect, cube};
 use primitives::texture2d::{PixelFormat, Texture2d};
 use scene::camera::{Camera, CameraParams, CameraAction};
 use scene_extensions::simple_scene::SimpleScene;
-use utils::image::{begin_single_time_command, end_single_time_command};
+use utils::{image::{begin_single_time_command, end_single_time_command}, keyboard::KeyboardState};
 use vk_bundles::*;
 use rhi::allocator::{Allocator, AllocatorSizeInfo, BufferType};
 
@@ -30,11 +30,14 @@ use ash::vk;
 use vk_base::VkBase;
 
 use winit::{
-    event::{Event, KeyEvent, WindowEvent},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
-    keyboard::{PhysicalKey, KeyCode},
+    keyboard::{KeyCode, PhysicalKey},
     window::{Window, WindowBuilder},
 };
+
+const CAMERA_LOCATION: Vec3 = Vec3::new(0.0, 0.0, 10.0);
+const CAMERA_DIRECTION: Vec3 = Vec3::new(0.0, 0.0, -1.0);
 
 struct App {
     base: VkBase,
@@ -56,6 +59,8 @@ struct App {
     current_time: Instant,
     delta_time: f32,
     speed:      f32,
+
+    keyboard_state: KeyboardState,
 
     allocator: Allocator,
     shader_poll_time: Instant
@@ -119,7 +124,7 @@ impl App {
 
         let camera_staging = allocator.alloc(BufferType::Staging, std::mem::size_of::<CameraParams>() as u64).unwrap();
         let camera_uniform = allocator.alloc(BufferType::Uniform, std::mem::size_of::<CameraParams>() as u64).unwrap();
-        let camera = Camera::new(Vec3::new(0.0, 0.0, 10.0), Vec3::new(0.0, 0.0, -1.0));
+        let camera = Self::make_camera();
 
         let global_descriptor_set = VkBase::create_descriptor_sets(&base.device, base.descriptor_pool, base.global_descriptor_set_layout, base.max_in_flight);
 
@@ -130,7 +135,9 @@ impl App {
 
         let current_time = Instant::now();
         let delta_time   = 16.0e-3;
-        let speed        = 1.0;
+        let speed        = 0.05;
+
+        let keyboard_state = KeyboardState::new();
 
 
         Self {
@@ -151,6 +158,8 @@ impl App {
             delta_time,
             speed,
 
+            keyboard_state,
+
             shader_poll_time: Instant::now() + SHADER_POLL_INTERVAL,
             close: false,
         }
@@ -161,6 +170,8 @@ impl App {
         let ct = Instant::now();
         let delta_time_dur = ct - self.current_time;
         self.delta_time = delta_time_dur.as_secs_f32();
+
+        self.handle_down_keys();
 
         for mesh_bundle in self.rect_bundles.iter_mut() {
             mesh_bundle.mesh.transform(0.001, [0.0, 0.0]);
@@ -272,7 +283,34 @@ impl App {
             } => {
                 self.handle_key(event);
             }
-            _ => {}
+            _ => {
+            }
+        }
+    }
+
+    fn handle_down_keys(&mut self) {
+        if self.keyboard_state[KeyCode::KeyA] {
+            self.camera.update(CameraAction::Left, self.delta_time * self.speed);
+        }
+
+        if self.keyboard_state[KeyCode::KeyD] {
+            self.camera.update(CameraAction::Right, self.delta_time * self.speed);
+        }
+
+        if self.keyboard_state[KeyCode::KeyW] {
+            self.camera.update(CameraAction::Forward, self.delta_time * self.speed);
+        }
+
+        if self.keyboard_state[KeyCode::KeyS] {
+            self.camera.update(CameraAction::Backward, self.delta_time * self.speed);
+        }
+
+        if self.keyboard_state[KeyCode::KeyE] {
+            self.camera.update(CameraAction::Up, self.delta_time * self.speed);
+        }
+
+        if self.keyboard_state[KeyCode::KeyQ] {
+            self.camera.update(CameraAction::Down, self.delta_time * self.speed);
         }
     }
 
@@ -282,40 +320,32 @@ impl App {
                 match a {
                     KeyCode::Escape => {
                         self.close = true;
-                    },
-
-                    KeyCode::KeyA => {
-                        self.camera.update(CameraAction::Left, self.delta_time * self.speed);
                     }
 
-                    KeyCode::KeyD => {
-                        self.camera.update(CameraAction::Right, self.delta_time * self.speed);
+                    KeyCode::KeyA | KeyCode::KeyD | KeyCode::KeyW | KeyCode::KeyS | KeyCode::KeyE | KeyCode::KeyQ => {
+                        self.keyboard_state[a] = event.state == ElementState::Pressed;
                     }
 
-                    KeyCode::KeyW => {
-                        self.camera.update(CameraAction::Forward, self.delta_time * self.speed);
+
+                    KeyCode::KeyT => {
+                        self.reset_camera();
                     }
 
-                    KeyCode::KeyS => {
-                        self.camera.update(CameraAction::Backward, self.delta_time * self.speed);
-                    }
-
-                    KeyCode::KeyE => {
-                        self.camera.update(CameraAction::Up, self.delta_time * self.speed);
-                    }
-
-                    KeyCode::KeyQ => {
-                        self.camera.update(CameraAction::Down, self.delta_time * self.speed);
-                    }
-
-                    _ => {
-
-
+                    k => {
+                        SimpleScene::handle_key(&mut self.scenes, k, event.state, event.repeat);
                     }
                 }
             }
             _ => {}
         }
+    }
+
+    fn reset_camera(&mut self) {
+        self.camera = Self::make_camera();
+    }
+
+    fn make_camera() -> Camera{
+        return Camera::new(CAMERA_LOCATION, CAMERA_DIRECTION);
     }
 }
 
@@ -337,18 +367,6 @@ impl Drop for App {
 
             SimpleScene::release(&mut self.scenes, &self.base);
             self.scenes.clear();
-
-            for i in 0..self.base.graphics_pipelines.len() {
-                if let Some(ubo) = self.base.graphics_pipelines[i].ubo.as_ref() {
-                    for ubo_elem in ubo {
-                        self.base.device.logical.destroy_descriptor_set_layout(*ubo_elem, None)
-                    }
-                }
-
-                self.base.device.logical.destroy_pipeline(self.base.graphics_pipelines[i].graphics, None);
-                self.base.device.logical.destroy_pipeline_layout(self.base.graphics_pipelines[i].layout, None);
-            }
-
 
             self.allocator.release(&self.base.device);
         }
